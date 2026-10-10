@@ -1,0 +1,2008 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kompas100 Strategy Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0a0f1d',
+                        darker: '#030712',
+                        panel: '#111827',
+                        panelHover: '#1f2937',
+                        primary: '#087f65', // Forest green
+                        success: '#10b981', // Emerald 500
+                        danger: '#f43f5e', // Rose 500
+                        warning: '#fbbf24', // Amber 400
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0f1d; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f2937; 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #374151; 
+        }
+        :root {
+            color-scheme: dark;
+            --page: #0b1110;
+            --ink: #e9f1ed;
+            --muted: #93a49d;
+            --line: #283833;
+            --panel: #131d19;
+            --accent: #39c99a;
+        }
+        body { font-family: 'DM Sans', sans-serif; background: var(--page) !important; color: var(--ink) !important; }
+        h1, h2, h3 { font-family: 'Manrope', sans-serif; }
+        nav { background: rgba(10,17,15,.94) !important; border-color: var(--line) !important; }
+        main > :not(#strategyLab) { display: none !important; }
+        #strategyLab, .bg-panel { background: var(--panel) !important; border-color: var(--line) !important; box-shadow: 0 18px 48px rgba(0, 0, 0, .22) !important; }
+        .bg-dark { background: #0d1512 !important; }
+        .bg-darker { background: #080d0b !important; }
+        .bg-slate-900\/50 { background: #111a16 !important; }
+        .text-white { color: var(--ink) !important; }
+        .text-slate-300 { color: #c0cec7 !important; }
+        .text-slate-200 { color: #e1eae5 !important; }
+        .text-slate-400, .text-slate-500 { color: var(--muted) !important; }
+        .border-slate-800, .border-slate-800\/80, .border-slate-700 { border-color: var(--line) !important; }
+        .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) { border-color: var(--line) !important; }
+        #strategyLab { border-radius: 8px !important; }
+        #strategyLab button { border-radius: 6px; }
+        #strategyLab table tbody tr:hover { background: #18251f; }
+        #btnAutoScan[aria-pressed="true"] { background: #15382e; border-color: #286c54; color: #71e0b5; }
+        #btnPaperAutoBuy[aria-pressed="true"] { background: rgba(245, 158, 11, .12); border-color: #9a6a19; color: #fbbf24; }
+        @media (max-width: 640px) {
+            nav .max-w-7xl { align-items: stretch; }
+            #strategyLab .max-h-72 { max-height: 55vh; }
+        }
+    </style>
+</head>
+<body class="bg-dark text-slate-300 min-h-screen antialiased selection:bg-primary selection:text-white">
+
+    <nav class="border-b border-slate-800 bg-darker/80 backdrop-blur sticky top-0 z-40 px-4 md:px-8 py-3.5">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-primary/10 border border-primary/20 rounded-xl text-primary">
+                    <i data-lucide="layout-dashboard" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                        Kompas100 Strategy Monitor
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">IDX · Yahoo</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Pemantauan sinyal, win rate historis, dan validasi strategi</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                <button onclick="runStrategyBacktest()" class="bg-primary hover:bg-emerald-800 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> Perbarui data
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-8 space-y-6">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg relative group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Valuation</p>
+                        <p class="text-2xl font-bold text-white mt-1.5 tracking-tight" id="valTotalEquity">Rp 0</p>
+                    </div>
+                    <div class="p-2.5 bg-primary/10 border border-primary/20 rounded-xl text-primary"><i data-lucide="wallet" class="w-5 h-5"></i></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-800 flex justify-between text-xs">
+                    <span class="text-slate-500">Initial Outlay</span>
+                    <span class="text-slate-300 font-medium" id="valInitialEquity">Rp 0</span>
+                </div>
+            </div>
+
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg relative group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Available Liquid Cash</p>
+                        <p class="text-2xl font-bold text-white mt-1.5 tracking-tight" id="valCash">Rp 0</p>
+                    </div>
+                    <div class="p-2.5 bg-success/10 border border-success/20 rounded-xl text-success"><i data-lucide="landmark" class="w-5 h-5"></i></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-800 flex justify-between text-xs">
+                    <span class="text-slate-500">Idle Reserves</span>
+                    <span class="text-success font-medium">Ready</span>
+                </div>
+            </div>
+
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg relative group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Active Exposure Value</p>
+                        <p class="text-2xl font-bold text-white mt-1.5 tracking-tight" id="valOpenPositions">Rp 0</p>
+                    </div>
+                    <div class="p-2.5 bg-warning/10 border border-warning/20 rounded-xl text-warning"><i data-lucide="pie-chart" class="w-5 h-5"></i></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-800 flex justify-between text-xs">
+                    <span class="text-slate-500">In-Market Capital</span>
+                    <span class="text-slate-300 font-medium" id="valInvestedPctText">0% of Portfolio</span>
+                </div>
+            </div>
+
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg relative group hover:border-slate-700 transition-all">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Portfolio Deployment</p>
+                        <p class="text-2xl font-bold text-white mt-1.5 tracking-tight" id="valInvestedPct">0%</p>
+                    </div>
+                    <div class="p-2.5 bg-primary/10 border border-primary/20 rounded-xl text-primary"><i data-lucide="activity" class="w-5 h-5"></i></div>
+                </div>
+                <div class="w-full bg-dark rounded-full h-2 mt-3.5 border border-slate-800 overflow-hidden">
+                    <div id="barInvestedPct" class="bg-primary h-full rounded-full transition-all duration-700" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            
+            <!-- 1. Winning Rate -->
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Winning Rate</span>
+                        <span class="p-1.5 bg-dark rounded-lg text-primary border border-slate-800"><i data-lucide="award" class="w-4 h-4"></i></span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-white tracking-tight" id="valWinRate">0%</p>
+                </div>
+                <div class="mt-4">
+                    <div class="w-full bg-dark rounded-full h-1.5 border border-slate-800 overflow-hidden mb-2">
+                        <div id="barWinRate" class="bg-success h-full rounded-full transition-all duration-1000" style="width: 0%"></div>
+                    </div>
+                    <p class="text-[11px] text-slate-500 font-medium" id="valTradeCount">0 Wins / 0 Total Trades</p>
+                </div>
+            </div>
+
+            <!-- 2. Profit Factor -->
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Profit Factor</span>
+                        <span class="p-1.5 bg-dark rounded-lg text-success border border-slate-800"><i data-lucide="trending-up" class="w-4 h-4"></i></span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-white tracking-tight" id="valProfitFactor">0.00</p>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-4 font-medium">Gross Profit / Gross Loss</p>
+            </div>
+
+            <!-- 3. Max Drawdown -->
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Max Drawdown</span>
+                        <span class="p-1.5 bg-dark rounded-lg text-danger border border-slate-800"><i data-lucide="trending-down" class="w-4 h-4"></i></span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-danger tracking-tight" id="valMaxDD">0.00%</p>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-4 font-medium">Peak to trough decline</p>
+            </div>
+
+            <!-- 6. Payoff Ratio -->
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Payoff Ratio</span>
+                        <span class="p-1.5 bg-dark rounded-lg text-primary border border-slate-800"><i data-lucide="scale" class="w-4 h-4"></i></span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-white tracking-tight" id="valPayoff">0.00</p>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-4 font-medium">Average Win / |Avg Loss|</p>
+            </div>
+
+            <!-- 9. CAGR -->
+            <div class="bg-panel rounded-2xl p-5 border border-slate-800/80 shadow-lg flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">CAGR (Annualized)</span>
+                        <span class="p-1.5 bg-dark rounded-lg text-success border border-slate-800"><i data-lucide="calendar" class="w-4 h-4"></i></span>
+                    </div>
+                    <p class="text-3xl font-extrabold text-success tracking-tight" id="valCAGR">0.00%</p>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-4 font-medium truncate" id="valDaysActive">Duration (0 days)</p>
+            </div>
+
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+             <div class="bg-panel rounded-2xl p-4 border border-slate-800/80 flex items-center justify-between shadow-md">
+                <div>
+                    <p class="text-xs font-medium text-slate-400">4. Average Win</p>
+                    <p class="text-lg font-bold text-success mt-1" id="valAvgWin">+0.00%</p>
+                </div>
+                <div class="p-2 bg-success/10 rounded-xl text-success"><i data-lucide="arrow-up-right" class="w-5 h-5"></i></div>
+            </div>
+            
+            <div class="bg-panel rounded-2xl p-4 border border-slate-800/80 flex items-center justify-between shadow-md">
+                <div>
+                    <p class="text-xs font-medium text-slate-400">5. Average Loss</p>
+                    <p class="text-lg font-bold text-danger mt-1" id="valAvgLoss">0.00%</p>
+                </div>
+                <div class="p-2 bg-danger/10 rounded-xl text-danger"><i data-lucide="arrow-down-right" class="w-5 h-5"></i></div>
+            </div>
+            
+            <div class="bg-panel rounded-2xl p-4 border border-slate-800/80 flex items-center justify-between shadow-md">
+                <div>
+                    <p class="text-xs font-medium text-slate-400">7. Avg Hold (Win)</p>
+                    <p class="text-lg font-bold text-white mt-1" id="valBarWin">0 days</p>
+                </div>
+                <div class="p-2 bg-dark rounded-xl text-slate-400 border border-slate-800"><i data-lucide="clock" class="w-5 h-5"></i></div>
+            </div>
+            
+            <div class="bg-panel rounded-2xl p-4 border border-slate-800/80 flex items-center justify-between shadow-md">
+                <div>
+                    <p class="text-xs font-medium text-slate-400">8. Avg Hold (Loss)</p>
+                    <p class="text-lg font-bold text-white mt-1" id="valBarLose">0 days</p>
+                </div>
+                <div class="p-2 bg-dark rounded-xl text-slate-400 border border-slate-800"><i data-lucide="clock" class="w-5 h-5"></i></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- 10. Daftar Pantau (Watchlist) -->
+            <div class="bg-panel rounded-2xl border border-slate-800/80 overflow-hidden flex flex-col h-[420px] shadow-xl">
+                <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                    <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                        <i data-lucide="list-filter" class="w-4 h-4 text-warning"></i> 10. Daftar Pantau Watchlist
+                    </h3>
+                    <span id="marketDataStatus" class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1" aria-live="polite">
+                        <span id="marketDataStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> Waiting for Yahoo Finance
+                    </span>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-xs text-left text-slate-400">
+                        <thead class="text-[11px] text-slate-500 uppercase bg-dark sticky top-0 border-b border-slate-800">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 font-semibold">Symbol</th>
+                                <th scope="col" class="px-4 py-3 font-semibold text-right">Market Price</th>
+                                <th scope="col" class="px-4 py-3 font-semibold">Signal / Note</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableWatchlist" class="divide-y divide-slate-800/60">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 12. Posisi Aktif -->
+            <div class="bg-panel rounded-2xl border border-slate-800/80 overflow-hidden flex flex-col h-[420px] lg:col-span-2 shadow-xl">
+                <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                    <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                        <i data-lucide="layers" class="w-4 h-4 text-primary"></i> 12. Posisi Aktif (Open Positions)
+                    </h3>
+                    <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse"></span> Live MTM
+                    </span>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-xs text-left text-slate-400">
+                        <thead class="text-[11px] text-slate-500 uppercase bg-dark sticky top-0 border-b border-slate-800">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 font-semibold">Symbol</th>
+                                <th scope="col" class="px-4 py-3 font-semibold">Entry Date</th>
+                                <th scope="col" class="px-4 py-3 font-semibold text-right">Entry Px</th>
+                                <th scope="col" class="px-4 py-3 font-semibold text-right">Current Px</th>
+                                <th scope="col" class="px-4 py-3 font-semibold text-right">Unrealized P&L</th>
+                                <th scope="col" class="px-4 py-3 font-semibold text-right">Hold Days</th>
+                                <th scope="col" class="px-4 py-3 font-semibold text-right">Allocation</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableActive" class="divide-y divide-slate-800/60">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-panel rounded-2xl border border-slate-800/80 overflow-hidden flex flex-col h-[480px] shadow-xl">
+            <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                <h3 class="font-semibold text-white text-sm flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-slate-400"></i> 11. Riwayat Trade Tertutup (Closed History)
+                </h3>
+            </div>
+            <div class="flex-1 overflow-auto">
+                <table class="w-full text-xs text-left text-slate-400">
+                    <thead class="text-[11px] text-slate-500 uppercase bg-dark sticky top-0 border-b border-slate-800">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 font-semibold">Symbol</th>
+                            <th scope="col" class="px-4 py-3 font-semibold">Buy Date</th>
+                            <th scope="col" class="px-4 py-3 font-semibold text-right">Buy Price</th>
+                            <th scope="col" class="px-4 py-3 font-semibold">Sell Date</th>
+                            <th scope="col" class="px-4 py-3 font-semibold text-right">Sell Price</th>
+                            <th scope="col" class="px-4 py-3 font-semibold text-right">Return %</th>
+                            <th scope="col" class="px-4 py-3 font-semibold text-right">Hold Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableHistory" class="divide-y divide-slate-800/60">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <section id="strategyLab" class="bg-panel rounded-2xl border border-slate-800/80 overflow-hidden shadow-xl">
+            <div class="p-5 border-b border-slate-800 bg-slate-900/50 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                <div>
+                    <h2 class="text-base font-semibold text-white flex items-center gap-2">
+                        <i data-lucide="scan-search" class="w-5 h-5 text-success"></i> Mesin AFL Gabungan · Kompas100
+                    </h2>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                    <input id="strategySymbols" value="" placeholder="Universe pantauan Kompas100" aria-label="Daftar ticker saham IDX" class="w-full sm:w-80 bg-dark text-slate-200 px-3 py-2.5 rounded-lg border border-slate-700 focus:outline-none focus:border-primary text-xs font-mono">
+                    <button onclick="loadKompas100Universe()" title="Muat daftar ticker referensi Kompas100" aria-label="Muat daftar ticker referensi Kompas100" class="shrink-0 border border-slate-700 text-slate-300 px-3 py-2.5 rounded-lg text-xs hover:bg-slate-100">K100</button>
+                    <button onclick="loadOptimizationSample()" title="Pilih 12 ticker untuk optimasi parameter" aria-label="Pilih 12 ticker untuk optimasi" class="shrink-0 border border-slate-700 text-slate-300 px-3 py-2.5 rounded-lg text-xs hover:bg-slate-100">Subset 12</button>
+                    <button id="btnRunStrategy" onclick="runStrategyBacktest()" class="shrink-0 bg-success hover:bg-emerald-600 text-white font-semibold py-2.5 px-4 rounded-lg text-xs transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="play" class="w-4 h-4"></i> Scan & Backtest
+                    </button>
+                    <button id="btnGridSearch" onclick="runStrategyGridSearch()" class="shrink-0 bg-primary hover:bg-emerald-800 text-white font-semibold py-2.5 px-4 rounded-lg text-xs transition-all flex items-center justify-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4"></i> Optimalkan Win Rate
+                    </button>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <p id="strategyStatus" class="text-xs text-slate-400" aria-live="polite">Siap scan. Harga Yahoo bersifat indikatif, dapat tertunda, dan bukan feed real-time bursa terjamin.</p>
+                <p class="text-[11px] text-slate-500">Fee simulasi 0,15% per sisi · order open sesi berikutnya · Yahoo dapat tertunda.</p>
+            </div>
+            <div class="px-5 py-4 border-b border-slate-800 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-warning/30 bg-warning/10 text-warning">Paper Trading</span>
+                    <label class="text-[11px] text-slate-400 flex items-center gap-2">Modal awal
+                        <input id="paperInitialCapital" type="number" min="1000000" step="1000000" value="100000000" class="w-36 bg-dark text-slate-200 px-2.5 py-2 rounded-md border border-slate-700 text-xs font-mono">
+                    </label>
+                    <label class="text-[11px] text-slate-400 flex items-center gap-2">Interval scan
+                        <select id="autoScanInterval" class="bg-dark text-slate-200 px-2.5 py-2 rounded-md border border-slate-700 text-xs">
+                            <option value="5">5 menit</option><option value="15" selected>15 menit</option><option value="30">30 menit</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <button id="btnAutoScan" onclick="toggleAutoScan()" aria-pressed="false" class="border border-slate-700 text-slate-300 px-3 py-2 rounded-md text-xs font-semibold hover:bg-slate-800 flex items-center gap-2"><i data-lucide="radio" class="w-4 h-4"></i> Auto-scan: OFF</button>
+                    <button id="btnPaperAutoBuy" onclick="togglePaperAutoBuy()" aria-pressed="false" class="border border-warning/40 text-warning px-3 py-2 rounded-md text-xs font-semibold hover:bg-warning/10 flex items-center gap-2"><i data-lucide="bot" class="w-4 h-4"></i> Auto-buy simulasi: OFF</button>
+                    <button onclick="resetPaperPortfolio()" title="Reset paper portfolio" aria-label="Reset paper portfolio" class="p-2 rounded-md border border-slate-700 text-slate-400 hover:text-danger hover:border-danger"><i data-lucide="rotate-ccw" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 lg:grid-cols-7 gap-px bg-slate-800 border-b border-slate-800">
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Paper Equity</p><p id="paperEquity" class="text-lg font-bold text-white mt-1">Rp 100.000.000</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Kas</p><p id="paperCash" class="text-lg font-bold text-white mt-1">Rp 100.000.000</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">P&L Mengambang</p><p id="paperUnrealized" class="text-lg font-bold text-white mt-1">Rp 0</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Win Rate Portofolio</p><p id="paperWinRate" class="text-lg font-bold text-success mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Drawdown Berjalan</p><p id="paperDrawdown" class="text-lg font-bold text-warning mt-1">0.00%</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Posisi Terbuka</p><p id="paperOpenCount" class="text-lg font-bold text-white mt-1">0 / 8</p></div>
+            </div>
+            <div class="p-5 border-b border-slate-800">
+                <div class="flex items-center justify-between gap-3 mb-3"><h3 class="text-sm font-semibold text-white">Posisi Paper Berjalan</h3><span id="paperPortfolioStatus" class="text-[11px] text-slate-500">Simulasi lokal · order broker tidak dikirim</span></div>
+                <div class="overflow-auto max-h-64"><table class="w-full text-xs text-left text-slate-400"><thead class="text-[11px] text-slate-500 uppercase bg-dark sticky top-0"><tr><th class="px-3 py-2.5">Ticker</th><th class="px-3 py-2.5">Setup</th><th class="px-3 py-2.5">Entry</th><th class="px-3 py-2.5 text-right">Lot</th><th class="px-3 py-2.5 text-right">Harga Masuk</th><th class="px-3 py-2.5 text-right">Harga Mark</th><th class="px-3 py-2.5 text-right">P&L</th><th class="px-3 py-2.5 text-right">Stop</th></tr></thead><tbody id="paperPositions" class="divide-y divide-slate-800/60"><tr><td colspan="8" class="px-3 py-5 text-center text-slate-500">Belum ada posisi paper.</td></tr></tbody></table></div>
+            </div>
+            <div id="gridSearchSummary" class="hidden px-5 py-4 border-b border-slate-800 bg-dark/40" aria-live="polite"></div>
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-px bg-slate-800 border-b border-slate-800">
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Closed Trades</p><p id="strategyTradeCount" class="text-xl font-bold text-white mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Win Rate</p><p id="strategyWinRate" class="text-xl font-bold text-success mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Rata-rata P&L Equity / Trade</p><p id="strategyAvgReturn" class="text-xl font-bold text-white mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Profit Factor</p><p id="strategyProfitFactor" class="text-xl font-bold text-white mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">CAGR</p><p id="strategyCagr" class="text-xl font-bold text-success mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Sharpe</p><p id="strategySharpe" class="text-xl font-bold text-white mt-1">—</p></div>
+                <div class="bg-panel px-5 py-4"><p class="text-[11px] uppercase text-slate-500">Max Drawdown</p><p id="strategyMaxDrawdown" class="text-xl font-bold text-warning mt-1">—</p></div>
+            </div>
+            <div class="p-5 border-b border-slate-800">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h3 class="text-sm font-semibold text-white">Sinyal Terbaru</h3>
+                </div>
+                <div class="overflow-auto max-h-72">
+                    <table class="w-full text-xs text-left text-slate-400">
+                        <thead class="text-[11px] text-slate-500 uppercase bg-dark sticky top-0">
+                            <tr><th class="px-3 py-2.5">Ticker</th><th class="px-3 py-2.5">Setup</th><th class="px-3 py-2.5 text-right">Harga Terakhir</th><th class="px-3 py-2.5">Tanggal</th><th class="px-3 py-2.5 text-right">ADX</th><th class="px-3 py-2.5 text-right">RSI(2)</th><th class="px-3 py-2.5">Tren</th><th class="px-3 py-2.5">Sinyal</th><th class="px-3 py-2.5 text-right">Win Rate · PF</th><th class="px-3 py-2.5">Evaluasi</th></tr>
+                        </thead>
+                        <tbody id="strategySignals" class="divide-y divide-slate-800/60"><tr><td colspan="10" class="px-3 py-5 text-center text-slate-500">Belum ada hasil scan.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="p-5">
+                <div class="flex items-center justify-between gap-3 mb-3">
+                    <h3 class="text-sm font-semibold text-white">Rekap Transaksi Historis</h3>
+                    <div class="flex items-center gap-2">
+                        <span id="strategyTradeNote" class="text-[11px] text-slate-500"></span>
+                        <button onclick="downloadStrategyTrades()" title="Unduh seluruh rekap CSV" aria-label="Unduh seluruh rekap CSV" class="p-2 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-40" disabled id="btnExportStrategyTrades"><i data-lucide="download" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+                <div class="overflow-auto max-h-[520px]">
+                    <table class="w-full text-xs text-left text-slate-400">
+                        <thead class="text-[11px] text-slate-500 uppercase bg-dark sticky top-0">
+                            <tr><th class="px-3 py-2.5">Ticker</th><th class="px-3 py-2.5">Setup</th><th class="px-3 py-2.5">Beli</th><th class="px-3 py-2.5 text-right">Lot</th><th class="px-3 py-2.5 text-right">Harga Beli</th><th class="px-3 py-2.5">Jual / Status</th><th class="px-3 py-2.5 text-right">Harga Jual / Terakhir</th><th class="px-3 py-2.5 text-right">Return</th><th class="px-3 py-2.5 text-right">P&L Net</th><th class="px-3 py-2.5 text-right">Durasi</th></tr>
+                        </thead>
+                        <tbody id="strategyTrades" class="divide-y divide-slate-800/60"><tr><td colspan="10" class="px-3 py-5 text-center text-slate-500">Jalankan scan untuk membuat rekap transaksi.</td></tr></tbody>
+                    </table>
+                </div>
+                <div class="flex items-center justify-end gap-3 mt-3">
+                    <button id="btnStrategyPrev" onclick="changeStrategyTradesPage(-1)" class="p-2 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-40" title="Halaman sebelumnya" aria-label="Halaman sebelumnya" disabled><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                    <span id="strategyTradesPageLabel" class="text-[11px] text-slate-500">—</span>
+                    <button id="btnStrategyNext" onclick="changeStrategyTradesPage(1)" class="p-2 rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 disabled:opacity-40" title="Halaman berikutnya" aria-label="Halaman berikutnya" disabled><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="chartModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+        <div class="bg-panel w-full max-w-5xl rounded-2xl border border-slate-800 shadow-2xl flex flex-col overflow-hidden">
+            <div class="p-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i data-lucide="trending-up" class="w-4 h-4 text-primary"></i> 
+                    Historical Price Action Since 2010 — <span id="modalSymbolTitle" class="text-success font-mono font-semibold"></span>
+                </h3>
+                <button onclick="closeChartModal()" class="text-slate-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-slate-800">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 relative bg-dark/50" style="height: 60vh;">
+                <div id="chartLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-dark/90 z-10 backdrop-blur">
+                    <i data-lucide="loader-2" class="w-8 h-8 text-primary animate-spin mb-2"></i>
+                    <p class="text-xs text-slate-400">Fetching long-term historical ticks from Yahoo Finance (2010-Present)...</p>
+                </div>
+                <canvas id="historicalChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        let dataInputVisible = false;
+        function toggleDataInput() {
+            const panel = document.getElementById('dataInputPanel');
+            dataInputVisible = !dataInputVisible;
+            panel.classList.toggle('hidden', !dataInputVisible);
+        }
+
+        const formatCurrency = (num) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num);
+        };
+        const formatPct = (num, sign = false) => {
+            const prefix = sign && num > 0 ? '+' : '';
+            return `${prefix}${num.toFixed(2)}%`;
+        };
+
+        function daysBetween(date1, date2) {
+            const oneDay = 24 * 60 * 60 * 1000;
+            return Math.round(Math.abs((new Date(date2) - new Date(date1)) / oneDay));
+        }
+
+        let historyChartInstance = null;
+
+        function setMarketDataStatus(message, connected = false) {
+            const status = document.getElementById('marketDataStatus');
+            const dot = document.getElementById('marketDataStatusDot');
+            status.className = connected
+                ? 'text-[11px] font-medium px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 flex items-center gap-1'
+                : 'text-[11px] font-medium px-2 py-0.5 rounded-full bg-danger/10 text-danger border border-danger/20 flex items-center gap-1';
+            dot.className = `w-1.5 h-1.5 rounded-full ${connected ? 'bg-success animate-pulse' : 'bg-danger'}`;
+            status.lastChild.textContent = ` ${message}`;
+        }
+
+        async function fetchYahooChart(symbol, query) {
+            try {
+                const response = await fetch(`/api/yahoo/chart?symbol=${encodeURIComponent(symbol)}&${query}`, { cache: 'no-store' });
+                if (!response.ok) return null;
+                const data = await response.json();
+                return data.chart?.result?.[0] || null;
+            } catch (error) {
+                console.warn('Yahoo Finance request failed:', error.message);
+                return null;
+            }
+        }
+
+        const KOMPAS100_SYMBOLS = `AALI ABMM ACES ACST ADHI ADMR ADRO AGII AKRA AMMN AMRT ANTM ARCI ARTO ASII ASSA AUTO AVIA BBCA BBNI BBRI BBTN BDMN BFIN BMRI BNGA BNLI BRIS BRMS BRPT BSDE BTPS BUKA BUMI BYAN CAMP CFIN CMRY CPIN CTRA DEWA DMAS DOID DSNG ELSA EMTK ERAA ESSA EXCL GGRM GJTL HEAL HRUM ICBP IMPC INCO INDF INDY INKP INTP ISAT ITMG JPFA JRPT JSMR KLBF LPPF LSIP MAPI MDKA MEDC MIDI MIKA MNCN NCKL NISP PANI PGAS PGEO PTPP PTBA PWON SCMA SIDO SMGR SMRA SRTG SSIA TAPG TBIG TINS TKIM TLKM TOWR TPIA UNTR UNVR WIFI WIKA WSKT`.split(' ');
+
+        function loadKompas100Universe() {
+            document.getElementById('strategySymbols').value = KOMPAS100_SYMBOLS.join(',');
+            document.getElementById('strategyStatus').innerText = `${KOMPAS100_SYMBOLS.length} ticker referensi dimuat. Daftar ini perlu dicocokkan dengan konstituen resmi Kompas100 terbaru.`;
+        }
+
+        function loadOptimizationSample() {
+            const currentSymbols = [...new Set(document.getElementById('strategySymbols').value.toUpperCase().split(/[\s,;]+/).filter(Boolean))];
+            const sourceSymbols = currentSymbols.length > 12 ? currentSymbols : KOMPAS100_SYMBOLS;
+            document.getElementById('strategySymbols').value = sourceSymbols.slice(0, 12).join(',');
+            document.getElementById('strategyStatus').innerText = 'Subset 12 ticker dipilih dari universe referensi untuk optimasi parameter.';
+        }
+
+        async function mapWithConcurrency(items, limit, mapper) {
+            const results = Array(items.length);
+            let nextIndex = 0;
+            const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+                while (nextIndex < items.length) {
+                    const index = nextIndex++;
+                    results[index] = await mapper(items[index], index);
+                }
+            });
+            await Promise.all(workers);
+            return results;
+        }
+
+        async function fetchYahooHistory(symbol) {
+            const period1 = 1262304000; // 2010-01-01
+            const period2 = Math.floor(Date.now() / 1000);
+            const interval = '1wk'; 
+            const chartData = await fetchYahooChart(symbol, `period1=${period1}&period2=${period2}&interval=${interval}`);
+            if (!chartData?.timestamp) return null;
+            const timestamps = chartData.timestamp.map(ts => new Date(ts * 1000).toISOString().split('T')[0]);
+            const closes = chartData.indicators?.quote?.[0]?.close || [];
+            return { timestamps, closes };
+        }
+
+        async function openChartModal(symbol) {
+            document.getElementById('chartModal').classList.remove('hidden');
+            document.getElementById('modalSymbolTitle').innerText = symbol;
+            document.getElementById('chartLoading').classList.remove('hidden');
+
+            if (historyChartInstance) {
+                historyChartInstance.destroy();
+            }
+
+            const data = await fetchYahooHistory(symbol);
+            document.getElementById('chartLoading').classList.add('hidden');
+
+            if (!data || !data.timestamps) {
+                alert("Failed to retrieve historical ticker feed for " + symbol);
+                return;
+            }
+
+            const cleanData = [];
+            const cleanLabels = [];
+            for (let i = 0; i < data.closes.length; i++) {
+                if (data.closes[i] !== null) {
+                    cleanData.push(data.closes[i]);
+                    cleanLabels.push(data.timestamps[i]);
+                }
+            }
+
+            const ctx = document.getElementById('historicalChart').getContext('2d');
+            historyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: cleanLabels,
+                    datasets: [{
+                        label: `Weekly Close Price (IDR)`,
+                        data: cleanData,
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                        borderWidth: 2,
+                        fill: true,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#111827',
+                            titleColor: '#94a3b8',
+                            bodyColor: '#ffffff',
+                            borderColor: '#1f2937',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: '#1f2937', drawBorder: false },
+                            ticks: { color: '#64748b', maxTicksLimit: 10 }
+                        },
+                        y: {
+                            grid: { color: '#1f2937', drawBorder: false },
+                            ticks: { color: '#64748b' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function closeChartModal() {
+            document.getElementById('chartModal').classList.add('hidden');
+        }
+
+        async function fetchYahooPrices(symbols) {
+            if (!symbols || symbols.length === 0) return {};
+            const results = await Promise.all(symbols.map(async symbol => {
+                const chartData = await fetchYahooChart(symbol, 'range=1d&interval=1m');
+                const price = chartData?.meta?.regularMarketPrice;
+                return Number.isFinite(price) ? [symbol.toUpperCase(), price] : null;
+            }));
+            return Object.fromEntries(results.filter(Boolean));
+        }
+
+        const STRATEGY_START_DATE = 1262304000;
+        const STRATEGY_TRAIN_END_DATE = '2021-12-31';
+        const STRATEGY_TEST_START_DATE = '2022-01-01';
+        const STRATEGY_TRADES_PAGE_SIZE = 100;
+        const STRATEGY_COMMISSION_RATE = 0.0015;
+        const strategyConfig = {
+            mode: 'combined', fastLen: 20, slowLen: 50, trendLen: 200, adxLen: 14,
+            adxMin: 20, atrLen: 14, atrMult: 3, volumeLen: 20, minVolume: 500000,
+            rsiLen: 2, rsiBuy: 10, rsiExit: 65, meanTrendLen: 200,
+            bbLen: 20, bbStd: 2, exitMa: 5, stopMult: 2.5, maxHold: 10,
+            riskPct: 1, maxPct: 20, maxOpenPositions: 8
+        };
+        const PAPER_STORAGE_KEY = 'kompas100-paper-portfolio-v1';
+        const PAPER_SCAN_INTERVAL_DEFAULT = 5 * 60 * 1000;
+        let autoScanTimer = null;
+        let isStrategyScanRunning = false;
+        let autoScanEnabled = false;
+        let paperAutoBuyEnabled = false;
+        let paperPortfolio = loadPaperPortfolio();
+        let strategyAllTrades = [];
+        let strategyTradesPage = 0;
+        const formatStrategyPrice = value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
+
+        function loadPaperPortfolio() {
+            try {
+                const stored = JSON.parse(localStorage.getItem(PAPER_STORAGE_KEY) || 'null');
+                if (stored && Number.isFinite(stored.initialCapital) && Number.isFinite(stored.cash)) {
+                    return {
+                        initialCapital: stored.initialCapital,
+                        cash: stored.cash,
+                        peakEquity: Number.isFinite(stored.peakEquity) ? stored.peakEquity : stored.initialCapital,
+                        positions: stored.positions && typeof stored.positions === 'object' ? stored.positions : {},
+                        closedTrades: Array.isArray(stored.closedTrades) ? stored.closedTrades : [],
+                        lastScanAt: stored.lastScanAt || null
+                    };
+                }
+            } catch (error) {
+                console.warn('Paper portfolio storage unavailable:', error.message);
+            }
+            return { initialCapital: 100000000, cash: 100000000, peakEquity: 100000000, positions: {}, closedTrades: [], lastScanAt: null };
+        }
+
+        function savePaperPortfolio() {
+            try {
+                localStorage.setItem(PAPER_STORAGE_KEY, JSON.stringify(paperPortfolio));
+            } catch (error) {
+                console.warn('Paper portfolio could not be saved:', error.message);
+            }
+        }
+
+        function calculatePaperEquity() {
+            return paperPortfolio.cash + Object.values(paperPortfolio.positions)
+                .reduce((total, position) => total + position.quantity * position.lastPrice, 0);
+        }
+
+        function calculatePaperNetPnl(position, markPrice = position.lastPrice) {
+            return position.quantity * markPrice * (1 - STRATEGY_COMMISSION_RATE) - position.entryCost;
+        }
+
+        function updatePaperPortfolioUI() {
+            const positions = Object.values(paperPortfolio.positions);
+            const unrealized = positions.reduce((total, position) => total + calculatePaperNetPnl(position), 0);
+            const equity = calculatePaperEquity();
+            paperPortfolio.peakEquity = Math.max(paperPortfolio.peakEquity || paperPortfolio.initialCapital, equity);
+            const drawdown = paperPortfolio.peakEquity > 0 ? (paperPortfolio.peakEquity - equity) / paperPortfolio.peakEquity * 100 : 0;
+            const wins = paperPortfolio.closedTrades.filter(trade => trade.netPnl > 0).length;
+            const winRate = paperPortfolio.closedTrades.length ? wins / paperPortfolio.closedTrades.length * 100 : null;
+            document.getElementById('paperInitialCapital').value = String(paperPortfolio.initialCapital);
+            document.getElementById('paperEquity').innerText = formatCurrency(equity);
+            document.getElementById('paperCash').innerText = formatCurrency(paperPortfolio.cash);
+            document.getElementById('paperUnrealized').innerText = formatCurrency(unrealized);
+            document.getElementById('paperUnrealized').className = `text-lg font-bold mt-1 ${unrealized >= 0 ? 'text-success' : 'text-danger'}`;
+            document.getElementById('paperWinRate').innerText = winRate === null ? '—' : `${winRate.toFixed(1)}% · ${wins}/${paperPortfolio.closedTrades.length}`;
+            document.getElementById('paperDrawdown').innerText = `-${drawdown.toFixed(2)}%`;
+            document.getElementById('paperOpenCount').innerText = `${positions.length} / ${strategyConfig.maxOpenPositions}`;
+            document.getElementById('paperPortfolioStatus').innerText = paperPortfolio.lastScanAt
+                ? `Mark ${new Date(paperPortfolio.lastScanAt).toLocaleTimeString('id-ID')} · simulasi lokal, order broker tidak dikirim`
+                : 'Simulasi lokal · order broker tidak dikirim';
+            const rows = positions.map(position => {
+                const pnl = calculatePaperNetPnl(position);
+                return `<tr><td class="px-3 py-2.5 font-mono font-semibold text-white">${position.symbol}</td><td class="px-3 py-2.5">${position.engine === 'trend' ? 'Trend' : 'Mean Rev.'}</td><td class="px-3 py-2.5">${position.entryDate}</td><td class="px-3 py-2.5 text-right">${(position.quantity / 100).toLocaleString('id-ID')}</td><td class="px-3 py-2.5 text-right font-mono">${formatStrategyPrice(position.entryPrice)}</td><td class="px-3 py-2.5 text-right font-mono">${formatStrategyPrice(position.lastPrice)}</td><td class="px-3 py-2.5 text-right font-semibold ${pnl >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(pnl)}</td><td class="px-3 py-2.5 text-right font-mono">${formatStrategyPrice(position.stopPrice)}</td></tr>`;
+            });
+            document.getElementById('paperPositions').innerHTML = rows.length
+                ? rows.join('') : '<tr><td colspan="8" class="px-3 py-5 text-center text-slate-500">Belum ada posisi paper.</td></tr>';
+            savePaperPortfolio();
+            const scanButton = document.getElementById('btnAutoScan');
+            scanButton.setAttribute('aria-pressed', String(autoScanEnabled));
+            scanButton.innerHTML = `<i data-lucide="radio" class="w-4 h-4"></i> Auto-scan: ${autoScanEnabled ? 'ON' : 'OFF'}`;
+            const buyButton = document.getElementById('btnPaperAutoBuy');
+            buyButton.setAttribute('aria-pressed', String(paperAutoBuyEnabled));
+            buyButton.innerHTML = `<i data-lucide="bot" class="w-4 h-4"></i> Auto-buy simulasi: ${paperAutoBuyEnabled ? 'ON' : 'OFF'}`;
+            lucide.createIcons();
+        }
+
+        function closePaperPosition(symbol, price, date, reason) {
+            const position = paperPortfolio.positions[symbol];
+            if (!position) return;
+            const proceeds = position.quantity * price * (1 - STRATEGY_COMMISSION_RATE);
+            const netPnl = proceeds - position.entryCost;
+            paperPortfolio.cash += proceeds;
+            paperPortfolio.closedTrades.unshift({
+                symbol,
+                engine: position.engine,
+                entryDate: position.entryDate,
+                exitDate: date,
+                quantity: position.quantity,
+                entryPrice: position.entryPrice,
+                exitPrice: price,
+                netPnl,
+                netReturnPct: position.entryCost ? netPnl / position.entryCost * 100 : 0,
+                reason
+            });
+            delete paperPortfolio.positions[symbol];
+        }
+
+        function openPaperPosition(result) {
+            if (paperPortfolio.positions[result.symbol]
+                || Object.keys(paperPortfolio.positions).length >= strategyConfig.maxOpenPositions
+                || !['trend', 'mean'].includes(result.latestSetup)) return;
+            const atr = result.latestAtr;
+            const riskMultiplier = result.latestSetup === 'trend' ? strategyConfig.atrMult : strategyConfig.stopMult;
+            if (!Number.isFinite(atr) || atr <= 0) return;
+            const equity = calculatePaperEquity();
+            const riskBudget = equity * strategyConfig.riskPct / 100;
+            const maxNotional = equity * strategyConfig.maxPct / 100;
+            const stopDistance = riskMultiplier * atr;
+            const riskQuantity = Math.floor(riskBudget / stopDistance / 100) * 100;
+            const capQuantity = Math.floor(maxNotional / result.latestPrice / 100) * 100;
+            const cashQuantity = Math.floor(paperPortfolio.cash / (result.latestPrice * (1 + STRATEGY_COMMISSION_RATE)) / 100) * 100;
+            const quantity = Math.min(riskQuantity, capQuantity, cashQuantity);
+            if (!Number.isFinite(quantity) || quantity < 100) return;
+            const entryCost = quantity * result.latestPrice * (1 + STRATEGY_COMMISSION_RATE);
+            const stopPrice = result.latestSetup === 'trend'
+                ? Math.max(result.latestClose - stopDistance, result.trailingStop || 0)
+                : result.latestPrice - stopDistance;
+            paperPortfolio.cash -= entryCost;
+            paperPortfolio.positions[result.symbol] = {
+                symbol: result.symbol,
+                engine: result.latestSetup,
+                quantity,
+                entryDate: result.latestDate,
+                entryPrice: result.latestPrice,
+                entryCost,
+                lastPrice: result.latestPrice,
+                stopPrice,
+                stopDistance,
+                recentBars: [{ date: result.latestDate, low: result.latestLow, open: result.latestPrice, close: result.latestClose }],
+                openedAt: new Date().toISOString()
+            };
+        }
+
+        function updatePaperPortfolioFromScan(results) {
+            const resultsBySymbol = new Map(results.map(result => [result.symbol, result]));
+            for (const position of Object.values(paperPortfolio.positions)) {
+                const result = resultsBySymbol.get(position.symbol);
+                if (!result) continue;
+                if (!Array.isArray(position.recentBars)) position.recentBars = [];
+                if (!position.recentBars.some(bar => bar.date === result.latestDate)) {
+                    position.recentBars.push({ date: result.latestDate, low: result.latestLow, open: result.latestPrice, close: result.latestClose });
+                    position.recentBars = position.recentBars.slice(-strategyConfig.maxHold - 2);
+                }
+                position.lastPrice = result.latestPrice;
+                if (position.engine === 'trend' && Number.isFinite(result.trailingStop)) {
+                    position.stopPrice = Math.max(position.stopPrice, result.trailingStop);
+                } else if (position.engine === 'mean' && Number.isFinite(result.latestAtr)) {
+                    position.stopPrice = position.entryPrice - strategyConfig.stopMult * result.latestAtr;
+                }
+                const stopBar = position.recentBars.find(bar => bar.low <= position.stopPrice);
+                if (stopBar) {
+                    closePaperPosition(position.symbol, Math.min(stopBar.open, position.stopPrice), stopBar.date, 'ATR stop');
+                } else if (position.engine === 'trend' && result.trendCrossExit) {
+                    closePaperPosition(position.symbol, result.latestPrice, result.latestDate, 'EMA crossover');
+                } else if (position.engine === 'mean' && result.meanExit) {
+                    closePaperPosition(position.symbol, result.latestPrice, result.latestDate, 'Mean reversion exit');
+                } else if (position.engine === 'mean' && (result.meanTimeStop
+                    || (position.recentBars.length > strategyConfig.maxHold
+                        && daysBetween(position.entryDate, result.latestDate) >= strategyConfig.maxHold))) {
+                    closePaperPosition(position.symbol, result.latestPrice, result.latestDate, 'Time stop');
+                } else if (result.signal === 'SELL') {
+                    closePaperPosition(position.symbol, result.latestPrice, result.latestDate, 'AFL exit');
+                }
+            }
+
+            if (paperAutoBuyEnabled) {
+                for (const result of results) {
+                    if (result.signal === 'BUY') openPaperPosition(result);
+                }
+            }
+            paperPortfolio.lastScanAt = new Date().toISOString();
+            savePaperPortfolio();
+            updatePaperPortfolioUI();
+        }
+
+        function toggleAutoScan() {
+            autoScanEnabled = !autoScanEnabled;
+            if (autoScanTimer) clearInterval(autoScanTimer);
+            autoScanTimer = null;
+            if (autoScanEnabled) {
+                const requestedMinutes = Number(document.getElementById('autoScanInterval').value) || 15;
+                const symbolCount = document.getElementById('strategySymbols').value.split(/[\s,;]+/).filter(Boolean).length;
+                const minutes = symbolCount > 25 ? Math.max(15, requestedMinutes) : requestedMinutes;
+                if (minutes !== requestedMinutes) document.getElementById('autoScanInterval').value = String(minutes);
+                autoScanTimer = setInterval(runStrategyBacktest, minutes * 60 * 1000);
+                runStrategyBacktest();
+            } else {
+                paperAutoBuyEnabled = false;
+            }
+            updatePaperPortfolioUI();
+        }
+
+        function togglePaperAutoBuy() {
+            paperAutoBuyEnabled = !paperAutoBuyEnabled;
+            if (paperAutoBuyEnabled && !autoScanEnabled) toggleAutoScan();
+            updatePaperPortfolioUI();
+        }
+
+        function resetPaperPortfolio() {
+            if (!confirm('Reset paper portfolio, posisi terbuka, dan riwayat trade?')) return;
+            autoScanEnabled = false;
+            paperAutoBuyEnabled = false;
+            if (autoScanTimer) clearInterval(autoScanTimer);
+            autoScanTimer = null;
+            const capital = Math.max(1000000, Number(document.getElementById('paperInitialCapital').value) || 100000000);
+            paperPortfolio = { initialCapital: capital, cash: capital, peakEquity: capital, positions: {}, closedTrades: [], lastScanAt: null };
+            savePaperPortfolio();
+            updatePaperPortfolioUI();
+        }
+
+        function setPaperInitialCapital() {
+            const capital = Math.max(1000000, Number(document.getElementById('paperInitialCapital').value) || 100000000);
+            if (Object.keys(paperPortfolio.positions).length || paperPortfolio.closedTrades.length) {
+                document.getElementById('paperPortfolioStatus').innerText = 'Reset paper portfolio sebelum mengubah modal awal.';
+                updatePaperPortfolioUI();
+                return;
+            }
+            paperPortfolio.initialCapital = capital;
+            paperPortfolio.cash = capital;
+            paperPortfolio.peakEquity = capital;
+            savePaperPortfolio();
+            updatePaperPortfolioUI();
+        }
+
+        function strategySma(values, index, period) {
+            if (index < period - 1) return null;
+            let total = 0;
+            for (let cursor = index - period + 1; cursor <= index; cursor++) {
+                if (!Number.isFinite(values[cursor])) return null;
+                total += values[cursor];
+            }
+            return total / period;
+        }
+
+        function strategyEmaSeries(values, period) {
+            const series = Array(values.length).fill(null);
+            if (values.length < period) return series;
+            let seed = 0;
+            for (let index = 0; index < period; index++) seed += values[index];
+            let ema = seed / period;
+            series[period - 1] = ema;
+            const alpha = 2 / (period + 1);
+            for (let index = period; index < values.length; index++) {
+                ema = values[index] * alpha + ema * (1 - alpha);
+                series[index] = ema;
+            }
+            return series;
+        }
+
+        function strategyRsi(values, period) {
+            const rsi = Array(values.length).fill(null);
+            if (values.length <= period) return rsi;
+
+            let averageGain = 0;
+            let averageLoss = 0;
+            for (let index = 1; index <= period; index++) {
+                const change = values[index] - values[index - 1];
+                averageGain += Math.max(change, 0);
+                averageLoss += Math.max(-change, 0);
+            }
+            averageGain /= period;
+            averageLoss /= period;
+            rsi[period] = calculateRsiValue(averageGain, averageLoss);
+
+            for (let index = period + 1; index < values.length; index++) {
+                const change = values[index] - values[index - 1];
+                averageGain = (averageGain * (period - 1) + Math.max(change, 0)) / period;
+                averageLoss = (averageLoss * (period - 1) + Math.max(-change, 0)) / period;
+                rsi[index] = calculateRsiValue(averageGain, averageLoss);
+            }
+            return rsi;
+        }
+
+        function calculateRsiValue(averageGain, averageLoss) {
+            if (averageGain === 0 && averageLoss === 0) return 50;
+            if (averageLoss === 0) return 100;
+            if (averageGain === 0) return 0;
+            return 100 - 100 / (1 + averageGain / averageLoss);
+        }
+
+        function strategyAtrSeries(bars, period) {
+            const ranges = bars.map((bar, index) => index === 0
+                ? bar.high - bar.low
+                : Math.max(bar.high - bar.low, Math.abs(bar.high - bars[index - 1].close), Math.abs(bar.low - bars[index - 1].close)));
+            const atr = Array(bars.length).fill(null);
+            if (bars.length < period) return atr;
+            let value = ranges.slice(0, period).reduce((total, range) => total + range, 0) / period;
+            atr[period - 1] = value;
+            for (let index = period; index < bars.length; index++) {
+                value = (value * (period - 1) + ranges[index]) / period;
+                atr[index] = value;
+            }
+            return atr;
+        }
+
+        function strategyAdxSeries(bars, period) {
+            const plusDm = Array(bars.length).fill(0);
+            const minusDm = Array(bars.length).fill(0);
+            const ranges = bars.map((bar, index) => index === 0
+                ? bar.high - bar.low
+                : Math.max(bar.high - bar.low, Math.abs(bar.high - bars[index - 1].close), Math.abs(bar.low - bars[index - 1].close)));
+            for (let index = 1; index < bars.length; index++) {
+                const up = bars[index].high - bars[index - 1].high;
+                const down = bars[index - 1].low - bars[index].low;
+                if (up > down && up > 0) plusDm[index] = up;
+                if (down > up && down > 0) minusDm[index] = down;
+            }
+
+            const adx = Array(bars.length).fill(null);
+            if (bars.length < period * 2) return adx;
+            let smoothRange = ranges.slice(1, period + 1).reduce((sum, value) => sum + value, 0);
+            let smoothPlus = plusDm.slice(1, period + 1).reduce((sum, value) => sum + value, 0);
+            let smoothMinus = minusDm.slice(1, period + 1).reduce((sum, value) => sum + value, 0);
+            const dx = Array(bars.length).fill(null);
+            for (let index = period; index < bars.length; index++) {
+                if (index > period) {
+                    smoothRange = smoothRange - smoothRange / period + ranges[index];
+                    smoothPlus = smoothPlus - smoothPlus / period + plusDm[index];
+                    smoothMinus = smoothMinus - smoothMinus / period + minusDm[index];
+                }
+                const plusDi = smoothRange ? 100 * smoothPlus / smoothRange : 0;
+                const minusDi = smoothRange ? 100 * smoothMinus / smoothRange : 0;
+                dx[index] = plusDi + minusDi ? 100 * Math.abs(plusDi - minusDi) / (plusDi + minusDi) : 0;
+            }
+
+            const firstAdx = period * 2 - 1;
+            let value = dx.slice(period, firstAdx + 1).reduce((sum, item) => sum + item, 0) / period;
+            adx[firstAdx] = value;
+            for (let index = firstAdx + 1; index < bars.length; index++) {
+                value = (value * (period - 1) + dx[index]) / period;
+                adx[index] = value;
+            }
+            return adx;
+        }
+
+        function strategySmaSeries(values, period) {
+            const series = Array(values.length).fill(null);
+            let rollingTotal = 0;
+            for (let index = 0; index < values.length; index++) {
+                rollingTotal += values[index];
+                if (index >= period) rollingTotal -= values[index - period];
+                if (index >= period - 1) series[index] = rollingTotal / period;
+            }
+            return series;
+        }
+
+        function strategyBollinger(values, period, deviations) {
+            const middle = strategySmaSeries(values, period);
+            const lower = Array(values.length).fill(null);
+            for (let index = period - 1; index < values.length; index++) {
+                const mean = middle[index];
+                let squared = 0;
+                for (let cursor = index - period + 1; cursor <= index; cursor++) squared += (values[cursor] - mean) ** 2;
+                lower[index] = mean - deviations * Math.sqrt(squared / period);
+            }
+            return { middle, lower };
+        }
+
+        function strategyPreviousLowSeries(bars, period) {
+            const lows = Array(bars.length).fill(null);
+            for (let index = period; index < bars.length; index++) {
+                let minimum = Infinity;
+                for (let cursor = index - period; cursor < index; cursor++) minimum = Math.min(minimum, bars[cursor].low);
+                lows[index] = minimum;
+            }
+            return lows;
+        }
+
+        function prepareStrategyIndicators(bars, configs = [strategyConfig]) {
+            const closes = bars.map(bar => bar.close);
+            const volumes = bars.map(bar => bar.volume);
+            const emaPeriods = [...new Set(configs.flatMap(config => [config.fastLen, config.slowLen, config.trendLen]))];
+            const smaPeriods = [...new Set(configs.flatMap(config => [config.meanTrendLen, config.bbLen, config.exitMa]))];
+            const rsiPeriods = [...new Set(configs.map(config => config.rsiLen))];
+            const atrPeriods = [...new Set(configs.map(config => config.atrLen))];
+            const adxPeriods = [...new Set(configs.map(config => config.adxLen))];
+            const volumePeriods = [...new Set(configs.map(config => config.volumeLen))];
+            const bollingerKeys = [...new Map(configs
+                .map(config => [`${config.bbLen}:${config.bbStd}`, [config.bbLen, config.bbStd]])).values()];
+            return {
+                ema: new Map(emaPeriods.map(period => [period, strategyEmaSeries(closes, period)])),
+                sma: new Map(smaPeriods.map(period => [period, strategySmaSeries(closes, period)])),
+                rsi: new Map(rsiPeriods.map(period => [period, strategyRsi(closes, period)])),
+                atr: new Map(atrPeriods.map(period => [period, strategyAtrSeries(bars, period)])),
+                adx: new Map(adxPeriods.map(period => [period, strategyAdxSeries(bars, period)])),
+                volumeSma: new Map(volumePeriods.map(period => [period, strategySmaSeries(volumes, period)])),
+                bollinger: new Map(bollingerKeys.map(([period, deviations]) => [`${period}:${deviations}`, strategyBollinger(closes, period, deviations)])),
+                previousLow: strategyPreviousLowSeries(bars, 60)
+            };
+        }
+
+        function strategyTrendFilter(index, bars, indicators, config) {
+            const trend = indicators.ema.get(config.trendLen);
+            return trend[index] !== null && trend[index - 5] !== null
+                && bars[index].close > trend[index] && trend[index] > trend[index - 5];
+        }
+
+        function strategyMeanFilter(index, bars, indicators, config) {
+            const trend = indicators.sma.get(config.meanTrendLen);
+            return trend[index] !== null && trend[index - 10] !== null
+                && bars[index].close > trend[index] && trend[index] > trend[index - 10];
+        }
+
+        function strategyBuySignal(index, bars, indicators, config) {
+            const averageVolume = indicators.volumeSma.get(config.volumeLen)[index];
+            if (index < 1 || !Number.isFinite(averageVolume) || averageVolume <= config.minVolume) return null;
+
+            const fast = indicators.ema.get(config.fastLen);
+            const slow = indicators.ema.get(config.slowLen);
+            const adx = indicators.adx.get(config.adxLen)[index];
+            const trendEntry = strategyTrendFilter(index, bars, indicators, config)
+                && fast[index] > slow[index] && fast[index - 1] <= slow[index - 1]
+                && adx !== null && adx > config.adxMin;
+            if (trendEntry) return 'trend';
+
+            const rsi = indicators.rsi.get(config.rsiLen)[index];
+            const band = indicators.bollinger.get(`${config.bbLen}:${config.bbStd}`);
+            const priorLow = indicators.previousLow[index];
+            const notFalling = priorLow !== null && bars[index].close > priorLow * 1.02;
+            const meanEntry = strategyMeanFilter(index, bars, indicators, config) && notFalling
+                && (rsi < config.rsiBuy || bars[index].close < band.lower[index]);
+            return meanEntry ? 'mean' : null;
+        }
+
+        function strategySellSignal(index, bars, indicators, config, position) {
+            if (index < 1) return false;
+            const atr = indicators.atr.get(config.atrLen)[index];
+            if (atr === null) return false;
+
+            if (position.engine === 'trend') {
+                const fast = indicators.ema.get(config.fastLen);
+                const slow = indicators.ema.get(config.slowLen);
+                position.stopPrice = Math.max(position.stopPrice, bars[index].close - config.atrMult * atr);
+                return bars[index].close < position.stopPrice
+                    || (fast[index] < slow[index] && fast[index - 1] >= slow[index - 1]);
+            }
+
+            const rsi = indicators.rsi.get(config.rsiLen)[index];
+            const exitMa = indicators.sma.get(config.exitMa);
+            const band = indicators.bollinger.get(`${config.bbLen}:${config.bbStd}`);
+            position.stopPrice = position.buyPrice - config.stopMult * atr;
+            position.stopTriggered = bars[index].low <= position.stopPrice;
+            const exitCross = bars[index].close > exitMa[index] && bars[index - 1].close <= exitMa[index - 1];
+            const timeExit = index - position.signalIndex >= config.maxHold;
+            return position.stopTriggered || exitCross || rsi > config.rsiExit
+                || bars[index].close > band.middle[index] || timeExit;
+        }
+
+        async function loadStrategyBars(symbol) {
+            const period2 = Math.floor(Date.now() / 1000);
+            const chartData = await fetchYahooChart(symbol, `period1=${STRATEGY_START_DATE}&period2=${period2}&interval=1d`);
+            if (!chartData?.timestamp?.length) return null;
+
+            const quotes = chartData.indicators?.quote?.[0];
+            const adjustedCloses = chartData.indicators?.adjclose?.[0]?.adjclose || [];
+            if (!quotes?.close) return null;
+
+            const bars = chartData.timestamp.map((timestamp, index) => {
+                const rawClose = quotes.close[index];
+                const adjustedClose = adjustedCloses[index];
+                const close = Number.isFinite(adjustedClose) ? adjustedClose : rawClose;
+                const adjustmentFactor = Number.isFinite(rawClose) && rawClose !== 0 ? close / rawClose : 1;
+                const rawOpen = quotes.open?.[index];
+                const rawHigh = quotes.high?.[index];
+                const rawLow = quotes.low?.[index];
+                return {
+                    date: new Date(timestamp * 1000).toISOString().slice(0, 10),
+                    close,
+                    open: Number.isFinite(rawOpen) ? rawOpen * adjustmentFactor : close,
+                    high: Number.isFinite(rawHigh) ? rawHigh * adjustmentFactor : close,
+                    low: Number.isFinite(rawLow) ? rawLow * adjustmentFactor : close,
+                    volume: Number.isFinite(quotes.volume?.[index]) ? quotes.volume[index] : 0
+                };
+            }).filter(bar => Number.isFinite(bar.close) && bar.close > 0);
+
+            bars.livePrice = Number.isFinite(chartData.meta?.regularMarketPrice) ? chartData.meta.regularMarketPrice : null;
+            bars.marketTime = Number.isFinite(chartData.meta?.regularMarketTime) ? chartData.meta.regularMarketTime : null;
+            return bars.length > 200 ? bars : null;
+        }
+
+        function calculateNetReturnPct(buyPrice, sellPrice) {
+            const netProceeds = sellPrice * (1 - STRATEGY_COMMISSION_RATE);
+            const totalCost = buyPrice * (1 + STRATEGY_COMMISSION_RATE);
+            return (netProceeds / totalCost - 1) * 100;
+        }
+
+        function runStrategyWindow(symbol, bars, indicators, config, startIndex, endIndex) {
+            const trades = [];
+            let position = null;
+            const warmup = Math.max(config.trendLen + 5, config.meanTrendLen + 10,
+                config.slowLen, config.adxLen * 2, config.bbLen, 60, config.atrLen);
+            const firstIndex = Math.max(warmup, 1, startIndex);
+
+            for (let index = firstIndex; index < endIndex - 1; index++) {
+                const nextBar = bars[index + 1];
+                if (position && strategySellSignal(index, bars, indicators, config, position)) {
+                    const stopped = position.engine === 'mean' && position.stopTriggered;
+                    const sellDate = stopped ? bars[index].date : nextBar.date;
+                    const sellPrice = stopped ? Math.min(bars[index].open, position.stopPrice) : nextBar.open;
+                    const returnPct = calculateNetReturnPct(position.buyPrice, sellPrice);
+                    trades.push({
+                        symbol,
+                        engine: position.engine,
+                        buyDate: position.buyDate,
+                        buyPrice: position.buyPrice,
+                        sellDate,
+                        sellPrice,
+                        returnPct,
+                        capitalReturnPct: returnPct * position.positionPct,
+                        positionPct: position.positionPct * 100,
+                        riskPerShare: position.riskPerShare,
+                        holdDays: daysBetween(position.buyDate, sellDate),
+                        isOpen: false
+                    });
+                    position = null;
+                } else if (!position) {
+                    const engine = strategyBuySignal(index, bars, indicators, config);
+                    if (engine) {
+                        const atr = indicators.atr.get(config.atrLen)[index];
+                        const riskMultiplier = engine === 'trend' ? config.atrMult : config.stopMult;
+                        const stopDistance = riskMultiplier * atr;
+                        position = {
+                            engine,
+                            buyDate: nextBar.date,
+                            buyPrice: nextBar.open,
+                            signalIndex: index,
+                            positionPct: Math.min(config.riskPct * bars[index].close / stopDistance, config.maxPct) / 100,
+                            riskPerShare: stopDistance,
+                            stopPrice: engine === 'trend'
+                                ? bars[index].close - stopDistance
+                                : nextBar.open - stopDistance,
+                            stopTriggered: false
+                        };
+                    }
+                }
+            }
+
+            const lastIndex = endIndex - 1;
+            const latest = bars[lastIndex];
+            if (position) {
+                const lastBarStop = position.engine === 'mean'
+                    && strategySellSignal(lastIndex, bars, indicators, config, position)
+                    && position.stopTriggered;
+                const sellPrice = lastBarStop ? Math.min(latest.open, position.stopPrice) : latest.close;
+                const returnPct = calculateNetReturnPct(position.buyPrice, sellPrice);
+                trades.push({
+                    symbol,
+                    engine: position.engine,
+                    buyDate: position.buyDate,
+                    buyPrice: position.buyPrice,
+                    sellDate: lastBarStop ? latest.date : '',
+                    sellPrice,
+                    returnPct,
+                    capitalReturnPct: returnPct * position.positionPct,
+                    positionPct: position.positionPct * 100,
+                    riskPerShare: position.riskPerShare,
+                    holdDays: daysBetween(position.buyDate, latest.date),
+                    stopPrice: position.stopPrice,
+                    signalIndex: position.signalIndex,
+                    isOpen: !lastBarStop
+                });
+            }
+
+            return trades;
+        }
+
+        function runSymbolBacktest(symbol, bars, config = strategyConfig, preparedIndicators = null) {
+            const indicators = preparedIndicators || prepareStrategyIndicators(bars, [config]);
+            const trades = runStrategyWindow(symbol, bars, indicators, config, 0, bars.length);
+            const lastIndex = bars.length - 1;
+            const latest = bars[lastIndex];
+            const closedTrades = trades.filter(trade => !trade.isOpen);
+            const wins = closedTrades.filter(trade => trade.capitalReturnPct > 0).length;
+            const grossWins = closedTrades.filter(trade => trade.capitalReturnPct > 0).reduce((total, trade) => total + trade.capitalReturnPct, 0);
+            const grossLosses = Math.abs(closedTrades.filter(trade => trade.capitalReturnPct < 0).reduce((total, trade) => total + trade.capitalReturnPct, 0));
+            const symbolProfitFactor = grossLosses ? grossWins / grossLosses : grossWins ? Infinity : 0;
+            const firstTradeDate = closedTrades[0]?.buyDate || latest.date;
+            const elapsedYears = daysBetween(firstTradeDate, latest.date) / 365.25;
+            const compoundedReturn = closedTrades.reduce((equity, trade) => equity * (1 + trade.capitalReturnPct / 100), 1);
+            const symbolCagr = elapsedYears > 0 && compoundedReturn > 0
+                ? (Math.pow(compoundedReturn, 1 / elapsedYears) - 1) * 100 : 0;
+            const openTrade = trades.find(trade => trade.isOpen);
+            const currentPosition = openTrade ? {
+                engine: openTrade.engine,
+                stopPrice: openTrade.stopPrice,
+                signalIndex: openTrade.signalIndex,
+                stopTriggered: false
+            } : null;
+            const latestBuyEngine = strategyBuySignal(lastIndex, bars, indicators, config);
+            const latestSell = currentPosition && strategySellSignal(lastIndex, bars, indicators, config, currentPosition);
+            const trendIsUp = strategyTrendFilter(lastIndex, bars, indicators, config)
+                || strategyMeanFilter(lastIndex, bars, indicators, config);
+            const latestAdx = indicators.adx.get(config.adxLen)[lastIndex];
+            const latestRsi2 = indicators.rsi.get(config.rsiLen)[lastIndex];
+            const latestAtr = indicators.atr.get(config.atrLen)[lastIndex];
+            const latestTrailingStop = Number.isFinite(latestAtr)
+                ? latest.close - strategyConfig.atrMult * latestAtr : null;
+            const trendFast = indicators.ema.get(config.fastLen);
+            const trendSlow = indicators.ema.get(config.slowLen);
+            const meanExitAverage = indicators.sma.get(config.exitMa);
+            const meanBands = indicators.bollinger.get(`${config.bbLen}:${config.bbStd}`);
+            const hasOpenPosition = Boolean(openTrade);
+            const trendWatch = strategyTrendFilter(lastIndex, bars, indicators, config)
+                && indicators.ema.get(config.fastLen)[lastIndex] > indicators.ema.get(config.slowLen)[lastIndex]
+                && latestAdx >= config.adxMin * 0.8;
+            const meanWatch = strategyMeanFilter(lastIndex, bars, indicators, config)
+                && (latestRsi2 < 30 || latest.close < indicators.bollinger.get(`${config.bbLen}:${config.bbStd}`).middle[lastIndex]);
+
+            let signal = 'WAIT';
+            if (hasOpenPosition && latestSell) signal = 'SELL';
+            else if (hasOpenPosition) signal = 'HOLD';
+            else if (latestBuyEngine) signal = 'BUY';
+            else if (trendWatch || meanWatch) signal = 'WATCH';
+            const latestSetup = hasOpenPosition ? openTrade.engine
+                : latestBuyEngine || (trendWatch ? 'trend' : meanWatch ? 'mean' : '');
+
+            return {
+                symbol,
+                latestDate: latest.date,
+                latestClose: latest.close,
+                latestPrice: Number.isFinite(bars.livePrice) ? bars.livePrice : latest.close,
+                marketTime: bars.marketTime,
+                latestAdx,
+                latestRsi2,
+                latestAtr,
+                trailingStop: latestTrailingStop,
+                trendCrossExit: trendFast[lastIndex] < trendSlow[lastIndex]
+                    && trendFast[lastIndex - 1] >= trendSlow[lastIndex - 1],
+                meanExit: latestRsi2 > config.rsiExit || latest.close > meanBands.middle[lastIndex]
+                    || (latest.close > meanExitAverage[lastIndex]
+                        && bars[lastIndex - 1].close <= meanExitAverage[lastIndex - 1]),
+                meanTimeStop: openTrade?.engine === 'mean'
+                    && daysBetween(openTrade.buyDate, latest.date) >= config.maxHold,
+                latestLow: latest.low,
+                latestSetup,
+                trend: trendIsUp ? 'UPTREND' : 'FILTER OFF',
+                signal,
+                winRate: closedTrades.length ? wins / closedTrades.length * 100 : null,
+                closedTrades: closedTrades.length,
+                symbolProfitFactor,
+                symbolCagr,
+                trades
+            };
+        }
+
+        function strategyIndexAtOrAfter(bars, date) {
+            const index = bars.findIndex(bar => bar.date >= date);
+            return index < 0 ? bars.length : index;
+        }
+
+        function calculateStrategyCagr(items, config, startDate, endDate) {
+            const initialCapital = 100000000;
+            const events = [];
+            const startTime = new Date(`${startDate}T00:00:00Z`).getTime();
+            const endTime = new Date(`${endDate}T00:00:00Z`).getTime();
+
+            for (const item of items) {
+                const startIndex = strategyIndexAtOrAfter(item.bars, startDate);
+                const firstBarAfterEnd = item.bars.findIndex(bar => bar.date > endDate);
+                const endIndex = firstBarAfterEnd < 0 ? item.bars.length : firstBarAfterEnd;
+                if (startIndex >= item.bars.length || endIndex - startIndex < 2) continue;
+                const trades = runStrategyWindow(item.symbol, item.bars, item.indicators, config, startIndex, Math.min(endIndex, item.bars.length));
+                for (const trade of trades) {
+                    if (trade.buyDate < startDate || trade.buyDate > endDate) continue;
+                    events.push({ date: trade.buyDate, type: 'buy', trade, item });
+                    if (!trade.isOpen && trade.sellDate && trade.sellDate <= endDate) {
+                        events.push({ date: trade.sellDate, type: 'sell', trade, item });
+                    }
+                }
+            }
+
+            events.sort((left, right) => left.date.localeCompare(right.date)
+                || (left.type === right.type ? 0 : left.type === 'sell' ? -1 : 1));
+            let cash = initialCapital;
+            const positions = new Map();
+            const closedTrades = [];
+            const dailyEquity = [];
+            let peakEquity = initialCapital;
+            let maxDrawdownPct = 0;
+
+            const markPositionsBefore = date => {
+                for (const position of positions.values()) {
+                    const bars = position.item.bars;
+                    while (position.markIndex + 1 < bars.length && bars[position.markIndex + 1].date < date) position.markIndex++;
+                    if (position.markIndex >= 0) position.markPrice = bars[position.markIndex].close;
+                }
+            };
+            const currentEquity = () => cash + [...positions.values()]
+                .reduce((total, position) => total + position.quantity * position.markPrice * (1 - STRATEGY_COMMISSION_RATE), 0);
+            const markPositionsThrough = date => {
+                for (const position of positions.values()) {
+                    const bars = position.item.bars;
+                    while (position.markIndex + 1 < bars.length && bars[position.markIndex + 1].date <= date) position.markIndex++;
+                    if (position.markIndex >= 0) position.markPrice = bars[position.markIndex].close;
+                }
+            };
+            const updateDrawdown = () => {
+                const equity = currentEquity();
+                peakEquity = Math.max(peakEquity, equity);
+                if (peakEquity > 0) maxDrawdownPct = Math.max(maxDrawdownPct, (peakEquity - equity) / peakEquity * 100);
+            };
+
+            const portfolioDates = [...new Set([
+                ...items.flatMap(item => item.bars.filter(bar => bar.date >= startDate && bar.date <= endDate).map(bar => bar.date)),
+                ...events.map(event => event.date)
+            ])].sort();
+            let cursor = 0;
+            for (const date of portfolioDates) {
+                markPositionsBefore(date);
+                updateDrawdown();
+
+                while (cursor < events.length && events[cursor].date === date) {
+                    const event = events[cursor++];
+                    const tradeKey = `${event.trade.symbol}:${event.trade.buyDate}`;
+                    if (event.type === 'sell') {
+                        const position = positions.get(tradeKey);
+                        if (!position) continue;
+                        const proceeds = position.quantity * event.trade.sellPrice * (1 - STRATEGY_COMMISSION_RATE);
+                        const netPnl = proceeds - position.entryCost;
+                        cash += proceeds;
+                        position.trade.sellDate = event.trade.sellDate;
+                        position.trade.sellPrice = event.trade.sellPrice;
+                        position.trade.netPnl = netPnl;
+                        position.trade.returnPct = netPnl / position.entryCost * 100;
+                        position.trade.capitalReturnPct = netPnl / initialCapital * 100;
+                        position.trade.isOpen = false;
+                        position.trade.holdDays = daysBetween(position.trade.buyDate, position.trade.sellDate);
+                        closedTrades.push(position.trade);
+                        positions.delete(tradeKey);
+                        continue;
+                    }
+
+                    if (positions.size >= config.maxOpenPositions
+                        || [...positions.values()].some(position => position.trade.symbol === event.trade.symbol)) continue;
+                    const equity = currentEquity();
+                    const stopDistance = event.trade.riskPerShare;
+                    if (!Number.isFinite(stopDistance) || stopDistance <= 0) continue;
+                    const riskQuantity = Math.floor((equity * config.riskPct / 100 / stopDistance) / 100) * 100;
+                    const maxQuantity = Math.floor((equity * config.maxPct / 100 / event.trade.buyPrice) / 100) * 100;
+                    const cashQuantity = Math.floor((cash / (event.trade.buyPrice * (1 + STRATEGY_COMMISSION_RATE))) / 100) * 100;
+                    const quantity = Math.min(riskQuantity, maxQuantity, cashQuantity);
+                    if (quantity < 100) continue;
+                    const entryCost = quantity * event.trade.buyPrice * (1 + STRATEGY_COMMISSION_RATE);
+                    cash -= entryCost;
+                    const executedTrade = {
+                        ...event.trade,
+                        quantity,
+                        entryCost,
+                        positionPct: entryCost / equity * 100,
+                        netPnl: null,
+                        isOpen: true
+                    };
+                    positions.set(tradeKey, {
+                        item: event.item,
+                        trade: executedTrade,
+                        quantity,
+                        entryCost,
+                        markPrice: event.trade.buyPrice,
+                        markIndex: strategyIndexAtOrAfter(event.item.bars, date) - 1
+                    });
+                }
+                markPositionsThrough(date);
+                updateDrawdown();
+                dailyEquity.push(currentEquity());
+            }
+
+            for (const position of positions.values()) {
+                const bars = position.item.bars;
+                while (position.markIndex + 1 < bars.length && bars[position.markIndex + 1].date <= endDate) position.markIndex++;
+                if (position.markIndex >= 0) position.markPrice = bars[position.markIndex].close;
+                const liquidationValue = position.quantity * position.markPrice * (1 - STRATEGY_COMMISSION_RATE);
+                const unrealizedPnl = liquidationValue - position.entryCost;
+                position.trade.sellDate = '';
+                position.trade.sellPrice = position.markPrice;
+                position.trade.netPnl = unrealizedPnl;
+                position.trade.returnPct = unrealizedPnl / position.entryCost * 100;
+                position.trade.capitalReturnPct = unrealizedPnl / initialCapital * 100;
+                position.trade.holdDays = daysBetween(position.trade.buyDate, endDate);
+            }
+
+            const endingEquity = currentEquity();
+            updateDrawdown();
+            const years = (endTime - startTime) / (365.25 * 24 * 60 * 60 * 1000);
+            const cagr = years > 0 && endingEquity > 0
+                ? (Math.pow(endingEquity / initialCapital, 1 / years) - 1) * 100 : -100;
+            const winningTrades = closedTrades.filter(trade => trade.netPnl > 0).length;
+            const winRate = closedTrades.length ? winningTrades / closedTrades.length * 100 : 0;
+            const grossProfit = closedTrades.filter(trade => trade.netPnl > 0).reduce((total, trade) => total + trade.netPnl, 0);
+            const grossLoss = Math.abs(closedTrades.filter(trade => trade.netPnl < 0).reduce((total, trade) => total + trade.netPnl, 0));
+            const dailyReturns = dailyEquity.slice(1).map((equity, index) => equity / dailyEquity[index] - 1).filter(Number.isFinite);
+            const meanDailyReturn = dailyReturns.length ? dailyReturns.reduce((sum, value) => sum + value, 0) / dailyReturns.length : 0;
+            const dailyVariance = dailyReturns.length > 1
+                ? dailyReturns.reduce((sum, value) => sum + (value - meanDailyReturn) ** 2, 0) / (dailyReturns.length - 1) : 0;
+            const sharpe = dailyVariance > 0 ? meanDailyReturn / Math.sqrt(dailyVariance) * Math.sqrt(252) : 0;
+            return {
+                cagr,
+                closedTrades: closedTrades.length,
+                winRate,
+                profitFactor: grossLoss ? grossProfit / grossLoss : grossProfit ? Infinity : 0,
+                endingMultiple: endingEquity / initialCapital,
+                openPositions: positions.size,
+                sharpe,
+                maxDrawdownPct,
+                trades: [...closedTrades, ...[...positions.values()].map(position => position.trade)]
+            };
+        }
+
+        function buildStrategyGrid() {
+            const candidates = [];
+            for (const fastLen of [20, 30]) {
+                for (const adxMin of [20, 25]) {
+                    for (const atrMult of [3, 3.5]) {
+                        for (const rsiBuy of [5, 10]) {
+                            for (const stopMult of [2.5, 3]) {
+                                candidates.push({ ...strategyConfig, fastLen, adxMin, atrMult, rsiBuy, stopMult });
+                            }
+                        }
+                    }
+                }
+            }
+            return candidates;
+        }
+
+        function formatStrategyConfig(config) {
+            return `EMA ${config.fastLen}/${config.slowLen}/${config.trendLen} · ADX > ${config.adxMin} · trail ${config.atrMult}×ATR · RSI(${config.rsiLen}) < ${config.rsiBuy} · stop ${config.stopMult}×ATR`;
+        }
+
+        async function runStrategyGridSearch() {
+            const input = document.getElementById('strategySymbols');
+            const symbols = [...new Set(input.value.toUpperCase().split(/[\s,;]+/).filter(Boolean))];
+            const status = document.getElementById('strategyStatus');
+            const button = document.getElementById('btnGridSearch');
+            const summary = document.getElementById('gridSearchSummary');
+
+            if (!symbols.length || symbols.length > 12 || symbols.some(symbol => !/^[A-Z0-9.^-]{1,20}$/.test(symbol))) {
+                status.innerText = 'Optimasi membutuhkan 1–12 ticker valid. Untuk seluruh Kompas100, jalankan scan biasa.';
+                return;
+            }
+
+            input.value = symbols.join(',');
+            button.disabled = true;
+            button.innerText = 'Mengoptimalkan...';
+            const candidates = buildStrategyGrid();
+            status.innerText = `Mengambil data sejak 2010 dan menguji ${candidates.length} kombinasi AFL gabungan pada ${symbols.length} ticker...`;
+            summary.classList.add('hidden');
+
+            try {
+                const fetched = await mapWithConcurrency(symbols, 4, async symbol => ({ symbol, bars: await loadStrategyBars(symbol) }));
+                const items = fetched.filter(item => item.bars).map(item => ({
+                    ...item,
+                    indicators: prepareStrategyIndicators(item.bars, candidates)
+                }));
+                if (!items.length) throw new Error('Yahoo Finance tidak mengembalikan data yang cukup.');
+
+                let best = null;
+                const testEndDate = items.map(item => item.bars.at(-1).date).sort()[0];
+                for (const config of candidates) {
+                    const train = calculateStrategyCagr(items, config, '2010-01-01', STRATEGY_TRAIN_END_DATE);
+                    if (train.closedTrades < 30 || train.profitFactor < 1 || train.maxDrawdownPct > 35) continue;
+                    const test = calculateStrategyCagr(items, config, STRATEGY_TEST_START_DATE, testEndDate);
+                    if (test.closedTrades < 10 || test.profitFactor < 1 || test.maxDrawdownPct > 35) continue;
+                    if (!best || train.winRate > best.train.winRate
+                        || (train.winRate === best.train.winRate && train.sharpe > best.train.sharpe)
+                        || (train.winRate === best.train.winRate && train.sharpe === best.train.sharpe
+                            && train.maxDrawdownPct < best.train.maxDrawdownPct)
+                        || (train.winRate === best.train.winRate && train.sharpe === best.train.sharpe
+                            && train.maxDrawdownPct === best.train.maxDrawdownPct && train.cagr > best.train.cagr)) {
+                        best = { config, train, test };
+                    }
+                }
+                if (!best) throw new Error('Tidak ada kombinasi yang lolos batas 30/10 trade, PF ≥ 1, dan max drawdown ≤ 35%.');
+
+                Object.assign(strategyConfig, best.config);
+                const results = items.map(item => runSymbolBacktest(item.symbol, item.bars, strategyConfig, item.indicators));
+                renderStrategyResults(results, best.test);
+
+                const trainTargetMet = best.train.winRate >= 55;
+                const testTargetMet = best.test.winRate >= 50;
+                const targetHeadline = trainTargetMet && testTargetMet
+                    ? 'Validasi win rate lolos'
+                    : 'Validasi win rate belum konsisten';
+                summary.innerHTML = `<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                    <div><p class="text-sm font-semibold ${testTargetMet ? 'text-success' : 'text-warning'}">${targetHeadline}</p><p class="text-xs text-slate-400 mt-1">${formatStrategyConfig(best.config)} · ${candidates.length.toLocaleString('id-ID')} kombinasi gabungan</p></div>
+                    <div class="grid grid-cols-2 gap-4 text-right"><div><p class="text-[10px] uppercase text-slate-500">Train · ${best.train.closedTrades} trade</p><p class="text-sm font-bold text-success">WR ${best.train.winRate.toFixed(1)}% · PF ${best.train.profitFactor.toFixed(2)} · CAGR ${formatPct(best.train.cagr, true)}</p><p class="text-[10px] text-slate-500">Sharpe ${best.train.sharpe.toFixed(2)} · DD -${best.train.maxDrawdownPct.toFixed(1)}%</p></div><div><p class="text-[10px] uppercase text-slate-500">Test · ${best.test.closedTrades} trade</p><p class="text-sm font-bold ${testTargetMet ? 'text-success' : 'text-warning'}">WR ${best.test.winRate.toFixed(1)}% · PF ${best.test.profitFactor.toFixed(2)} · CAGR ${formatPct(best.test.cagr, true)}</p><p class="text-[10px] text-slate-500">Sharpe ${best.test.sharpe.toFixed(2)} · DD -${best.test.maxDrawdownPct.toFixed(1)}%</p></div></div>
+                </div>`;
+                summary.classList.remove('hidden');
+                const failedSymbols = fetched.filter(item => !item.bars).map(item => item.symbol);
+                status.innerText = `${items.length}/${symbols.length} ticker berhasil · win rate train ${best.train.winRate.toFixed(1)}%, test ${best.test.winRate.toFixed(1)}% · parameter diterapkan ke sinyal${failedSymbols.length ? ` · gagal: ${failedSymbols.join(', ')}` : ''}`;
+            } catch (error) {
+                console.error('Combined AFL grid search failed:', error);
+                status.innerText = error.message;
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<i data-lucide="sliders-horizontal" class="w-4 h-4"></i> Optimalkan Win Rate';
+                lucide.createIcons();
+            }
+        }
+
+        function renderStrategyResults(results, portfolioMetrics = null) {
+            const signalsBody = document.getElementById('strategySignals');
+            const signalOrder = { BUY: 0, WATCH: 1, HOLD: 2, SELL: 3, WAIT: 4 };
+            const orderedResults = [...results].sort((left, right) =>
+                signalOrder[left.signal] - signalOrder[right.signal]
+                || (right.winRate ?? -1) - (left.winRate ?? -1)
+                || right.closedTrades - left.closedTrades
+                || left.symbol.localeCompare(right.symbol));
+
+            signalsBody.innerHTML = orderedResults.map(result => {
+                const signalClass = result.signal === 'BUY' ? 'text-success font-bold'
+                    : result.signal === 'SELL' ? 'text-danger font-bold'
+                        : result.signal === 'HOLD' ? 'text-primary font-semibold' : 'text-slate-400';
+                const hasActionableSignal = result.signal === 'BUY' || result.signal === 'WATCH';
+                const evaluation = !hasActionableSignal ? '—'
+                    : result.closedTrades < 20 ? 'Sampel tipis'
+                        : result.winRate >= 60 && result.symbolProfitFactor >= 1 ? 'Prioritas historis'
+                            : result.winRate >= 50 && result.symbolProfitFactor >= 1 ? 'Pantau' : 'WR/PF rendah';
+                const evaluationClass = evaluation === 'Prioritas historis' ? 'text-success font-semibold'
+                    : evaluation === 'WR/PF rendah' ? 'text-warning' : 'text-slate-500';
+                const winRateText = result.winRate === null ? '—'
+                    : `${result.winRate.toFixed(1)}% <span class="text-slate-500">· n=${result.closedTrades}<br>PF ${Number.isFinite(result.symbolProfitFactor) ? result.symbolProfitFactor.toFixed(2) : '∞'}</span>`;
+                const quoteTitle = result.marketTime ? `Yahoo quote time: ${new Date(result.marketTime * 1000).toLocaleString('id-ID')}` : 'Harga terakhir dari Yahoo Finance';
+                return `<tr>
+                    <td class="px-3 py-2.5 font-mono font-semibold text-white">${result.symbol}</td>
+                    <td class="px-3 py-2.5 text-xs">${result.latestSetup === 'trend' ? 'Trend' : result.latestSetup === 'mean' ? 'Mean Rev.' : '—'}</td>
+                    <td class="px-3 py-2.5 text-right font-mono" title="${quoteTitle}">${formatStrategyPrice(result.latestPrice)}</td>
+                    <td class="px-3 py-2.5">${result.latestDate}</td>
+                    <td class="px-3 py-2.5 text-right font-mono">${Number.isFinite(result.latestAdx) ? result.latestAdx.toFixed(1) : '—'}</td>
+                    <td class="px-3 py-2.5 text-right font-mono">${Number.isFinite(result.latestRsi2) ? result.latestRsi2.toFixed(1) : '—'}</td>
+                    <td class="px-3 py-2.5">${result.trend}</td>
+                    <td class="px-3 py-2.5 ${signalClass}">${result.signal}</td>
+                    <td class="px-3 py-2.5 text-right font-mono">${winRateText}</td>
+                    <td class="px-3 py-2.5 ${evaluationClass}">${evaluation}</td>
+                </tr>`;
+            }).join('');
+
+            const allTrades = (portfolioMetrics?.trades || results.flatMap(result => result.trades))
+                .sort((left, right) => right.buyDate.localeCompare(left.buyDate));
+            const closedTrades = allTrades.filter(trade => !trade.isOpen);
+            const winCount = portfolioMetrics
+                ? closedTrades.filter(trade => trade.netPnl > 0).length
+                : closedTrades.filter(trade => trade.capitalReturnPct > 0).length;
+            const averageReturn = closedTrades.length
+                ? closedTrades.reduce((total, trade) => total + (portfolioMetrics ? trade.capitalReturnPct : trade.capitalReturnPct), 0) / closedTrades.length : 0;
+            const grossWin = portfolioMetrics
+                ? closedTrades.filter(trade => trade.netPnl > 0).reduce((total, trade) => total + trade.netPnl, 0)
+                : closedTrades.filter(trade => trade.capitalReturnPct > 0).reduce((total, trade) => total + trade.capitalReturnPct, 0);
+            const grossLoss = portfolioMetrics
+                ? Math.abs(closedTrades.filter(trade => trade.netPnl < 0).reduce((total, trade) => total + trade.netPnl, 0))
+                : Math.abs(closedTrades.filter(trade => trade.capitalReturnPct < 0).reduce((total, trade) => total + trade.capitalReturnPct, 0));
+            const profitFactor = grossLoss ? (grossWin / grossLoss).toFixed(2) : grossWin ? '∞' : '—';
+            const tradeEquity = closedTrades.reduce((equity, trade) => equity * (1 + trade.capitalReturnPct / 100), 1);
+            const firstDate = closedTrades.map(trade => trade.buyDate).sort()[0];
+            const lastDate = closedTrades.map(trade => trade.sellDate).filter(Boolean).sort().at(-1);
+            const durationYears = firstDate && lastDate ? daysBetween(firstDate, lastDate) / 365.25 : 0;
+            const realizedCagr = durationYears > 0 && tradeEquity > 0
+                ? (Math.pow(tradeEquity, 1 / durationYears) - 1) * 100 : null;
+
+            document.getElementById('strategyTradeCount').innerText = closedTrades.length.toLocaleString('id-ID');
+            document.getElementById('strategyWinRate').innerText = closedTrades.length
+                ? `${(winCount / closedTrades.length * 100).toFixed(1)}%` : '—';
+            document.getElementById('strategyAvgReturn').innerText = closedTrades.length ? formatPct(averageReturn, true) : '—';
+            document.getElementById('strategyProfitFactor').innerText = profitFactor;
+            document.getElementById('strategyCagr').innerText = formatPct(Number.isFinite(portfolioMetrics?.cagr) ? portfolioMetrics.cagr : realizedCagr ?? 0, true);
+            document.getElementById('strategySharpe').innerText = Number.isFinite(portfolioMetrics?.sharpe) ? portfolioMetrics.sharpe.toFixed(2) : '—';
+            document.getElementById('strategyMaxDrawdown').innerText = Number.isFinite(portfolioMetrics?.maxDrawdownPct)
+                ? `-${portfolioMetrics.maxDrawdownPct.toFixed(2)}%` : '—';
+
+            strategyAllTrades = allTrades;
+            strategyTradesPage = 0;
+            document.getElementById('btnExportStrategyTrades').disabled = allTrades.length === 0;
+            renderStrategyTradesPage();
+        }
+
+        function renderStrategyTradesPage() {
+            const pageCount = Math.max(1, Math.ceil(strategyAllTrades.length / STRATEGY_TRADES_PAGE_SIZE));
+            strategyTradesPage = Math.min(strategyTradesPage, pageCount - 1);
+            const start = strategyTradesPage * STRATEGY_TRADES_PAGE_SIZE;
+            const visibleTrades = strategyAllTrades.slice(start, start + STRATEGY_TRADES_PAGE_SIZE);
+            document.getElementById('strategyTradeNote').innerText = `${strategyAllTrades.length.toLocaleString('id-ID')} transaksi`;
+            document.getElementById('strategyTradesPageLabel').innerText = strategyAllTrades.length
+                ? `Halaman ${strategyTradesPage + 1} dari ${pageCount}` : 'Belum ada data';
+            document.getElementById('btnStrategyPrev').disabled = strategyTradesPage === 0 || strategyAllTrades.length === 0;
+            document.getElementById('btnStrategyNext').disabled = strategyTradesPage >= pageCount - 1 || strategyAllTrades.length === 0;
+            const tradesBody = document.getElementById('strategyTrades');
+            tradesBody.innerHTML = visibleTrades.length ? visibleTrades.map(trade => {
+                const returnClass = trade.returnPct >= 0 ? 'text-success' : 'text-danger';
+                return `<tr>
+                    <td class="px-3 py-2.5 font-mono font-semibold text-white">${trade.symbol}</td>
+                    <td class="px-3 py-2.5">${trade.engine === 'trend' ? 'Trend' : 'Mean Rev.'}</td>
+                    <td class="px-3 py-2.5">${trade.buyDate}</td>
+                    <td class="px-3 py-2.5 text-right">${Number.isFinite(trade.quantity) ? (trade.quantity / 100).toLocaleString('id-ID') : '—'}</td>
+                    <td class="px-3 py-2.5 text-right font-mono">${formatStrategyPrice(trade.buyPrice)}</td>
+                    <td class="px-3 py-2.5">${trade.isOpen ? 'OPEN' : trade.sellDate}</td>
+                    <td class="px-3 py-2.5 text-right font-mono">${formatStrategyPrice(trade.sellPrice)}</td>
+                    <td class="px-3 py-2.5 text-right font-semibold ${returnClass}">${formatPct(trade.returnPct, true)}${trade.isOpen ? ' *' : ''}</td>
+                    <td class="px-3 py-2.5 text-right font-semibold ${Number.isFinite(trade.netPnl) && trade.netPnl < 0 ? 'text-danger' : 'text-success'}">${Number.isFinite(trade.netPnl) ? formatCurrency(trade.netPnl) : '—'}</td>
+                    <td class="px-3 py-2.5 text-right">${trade.holdDays} hari</td>
+                </tr>`;
+            }).join('') : '<tr><td colspan="10" class="px-3 py-5 text-center text-slate-500">Belum ada transaksi.</td></tr>';
+        }
+
+        function changeStrategyTradesPage(direction) {
+            strategyTradesPage += direction;
+            renderStrategyTradesPage();
+        }
+
+        function downloadStrategyTrades() {
+            if (!strategyAllTrades.length) return;
+            const headers = ['Symbol', 'Setup', 'BuyDate', 'BuyPrice', 'SellDate', 'SellPrice', 'ReturnPct', 'CapitalReturnPct', 'PositionPct', 'HoldDays', 'Status'];
+            const rows = strategyAllTrades.map(trade => [
+                trade.symbol,
+                trade.engine,
+                trade.buyDate,
+                trade.buyPrice.toFixed(4),
+                trade.sellDate || '',
+                trade.sellPrice.toFixed(4),
+                trade.returnPct.toFixed(4),
+                trade.capitalReturnPct.toFixed(4),
+                trade.positionPct.toFixed(2),
+                trade.holdDays,
+                trade.isOpen ? 'OPEN' : 'CLOSED'
+            ]);
+            const csv = [headers, ...rows].map(row => row.join(',')).join('\r\n');
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            link.download = 'strategy-backtest-trades-2010-present.csv';
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        async function runStrategyBacktest() {
+            if (isStrategyScanRunning) return;
+            const input = document.getElementById('strategySymbols');
+            const symbols = [...new Set(input.value.toUpperCase().split(/[\s,;]+/).filter(Boolean))];
+            const status = document.getElementById('strategyStatus');
+            const button = document.getElementById('btnRunStrategy');
+
+            if (!symbols.length || symbols.length > 100 || symbols.some(symbol => !/^[A-Z0-9.^-]{1,20}$/.test(symbol))) {
+                status.innerText = 'Masukkan 1–100 ticker valid, pisahkan dengan koma atau spasi.';
+                return;
+            }
+
+            input.value = symbols.join(',');
+            isStrategyScanRunning = true;
+            button.disabled = true;
+            button.innerText = 'Mengambil data...';
+            status.innerText = `Mengambil data harian Yahoo Finance untuk ${symbols.length} ticker...`;
+
+            try {
+                const fetched = await mapWithConcurrency(symbols, 6, async symbol => ({
+                    symbol,
+                    bars: await loadStrategyBars(symbol)
+                }));
+                const items = fetched.filter(item => item.bars).map(item => ({
+                    ...item,
+                    indicators: prepareStrategyIndicators(item.bars)
+                }));
+                if (!items.length) {
+                    throw new Error('Yahoo Finance tidak mengembalikan data yang cukup untuk ticker tersebut.');
+                }
+
+                const results = items.map(item => runSymbolBacktest(item.symbol, item.bars, strategyConfig, item.indicators));
+                const cagrEndDate = items.map(item => item.bars.at(-1).date).sort()[0];
+                const portfolioMetrics = calculateStrategyCagr(items, strategyConfig, '2010-01-01', cagrEndDate);
+                renderStrategyResults(results, portfolioMetrics);
+                updatePaperPortfolioFromScan(results);
+                const firstDate = results.map(result => result.trades[0]?.buyDate || result.latestDate).sort()[0];
+                const lastDate = results.map(result => result.latestDate).sort().at(-1);
+                const failedSymbols = fetched.filter(item => !item.bars).map(item => item.symbol);
+                status.innerText = `${results.length}/${symbols.length} ticker berhasil · ${firstDate}–${lastDate}${failedSymbols.length ? ` · Gagal: ${failedSymbols.join(', ')}` : ''}`;
+            } catch (error) {
+                console.error('Strategy backtest failed:', error);
+                status.innerText = error.message;
+            } finally {
+                isStrategyScanRunning = false;
+                button.disabled = false;
+                button.innerHTML = '<i data-lucide="play" class="w-4 h-4"></i> Scan & Backtest';
+                lucide.createIcons();
+            }
+        }
+
+        async function processData() {
+            const rawData = document.getElementById('csvInput').value;
+            const initialEquity = parseFloat(document.getElementById('initialEquityInput').value);
+            
+            if (!rawData || isNaN(initialEquity)) {
+                alert("Please input valid trade records and initial equity.");
+                return;
+            }
+
+            const btn = document.getElementById('btnProcess');
+            const originalBtnText = btn.innerText;
+            btn.innerText = "Syncing Live Prices...";
+            btn.disabled = true;
+            setMarketDataStatus('Connecting to Yahoo Finance...');
+
+            try {
+            const lines = rawData.trim().split('\n');
+            const trades = [];
+            const activePositions = [];
+            let currentEquity = initialEquity;
+            let latestDateInDataset = new Date(0);
+
+            lines.forEach(line => {
+                const parts = line.split(',').map(s => s.trim());
+                if (parts.length >= 4) {
+                    const symbol = parts[0].toUpperCase();
+                    const buyDate = parts[1];
+                    const sellDate = parts[2];
+                    const buyPrice = parseFloat(parts[3]);
+                    const sellPrice = parseFloat(parts[4]);
+                    const qty = parseFloat(parts[5]) || Math.floor((initialEquity * 0.20) / buyPrice);
+
+                    const bDateObj = new Date(buyDate);
+                    if(bDateObj > latestDateInDataset) latestDateInDataset = bDateObj;
+                    
+                    if (sellDate && sellDate !== "" && !isNaN(sellPrice)) {
+                        const sDateObj = new Date(sellDate);
+                        if(sDateObj > latestDateInDataset) latestDateInDataset = sDateObj;
+
+                        const retPct = ((sellPrice - buyPrice) / buyPrice) * 100;
+                        const holdDays = daysBetween(buyDate, sellDate) || 1;
+                        const profitNominal = (sellPrice - buyPrice) * qty;
+
+                        trades.push({ symbol, buyDate, sellDate, buyPrice, sellPrice, retPct, holdDays, profitNominal, qty });
+                    } else {
+                        activePositions.push({ symbol, buyDate, buyPrice, qty, currentPrice: buyPrice, hasLivePrice: false });
+                    }
+                }
+            });
+
+            const activeSymbols = activePositions.map(p => p.symbol);
+            const watchlistSymbols = ['BBCA', 'BBRI', 'BMRI', 'ASII', 'TLKM', 'MAPI', 'GOTO'];
+            const allSymbolsToFetch = [...new Set([...activeSymbols, ...watchlistSymbols])];
+
+            const livePrices = await fetchYahooPrices(allSymbolsToFetch);
+
+            activePositions.forEach(p => {
+                if (livePrices[p.symbol]) {
+                    p.currentPrice = livePrices[p.symbol];
+                    p.hasLivePrice = true;
+                }
+            });
+
+            calculateKPIs(trades, activePositions, initialEquity, latestDateInDataset);
+            renderTables(trades, activePositions, livePrices, watchlistSymbols);
+
+            const receivedCount = Object.keys(livePrices).length;
+            const statusMessage = receivedCount === allSymbolsToFetch.length
+                ? `Yahoo Finance · ${receivedCount} symbols`
+                : receivedCount > 0
+                    ? `Yahoo partial · ${receivedCount}/${allSymbolsToFetch.length}`
+                    : 'Yahoo Finance unavailable';
+            setMarketDataStatus(statusMessage, receivedCount > 0);
+            if(dataInputVisible) toggleDataInput();
+            } catch (error) {
+                console.error('Unable to process Yahoo Finance prices:', error);
+                setMarketDataStatus('Yahoo Finance unavailable');
+                alert('Gagal memuat harga Yahoo Finance. Coba Refresh Prices lagi.');
+            } finally {
+                btn.innerText = originalBtnText;
+                btn.disabled = false;
+            }
+        }
+
+        async function refreshMarketData() {
+            if (!document.getElementById('csvInput').value.trim()) {
+                toggleDataInput();
+                return;
+            }
+            await processData();
+        }
+
+        function calculateKPIs(trades, activePositions, initialEquity, latestDate) {
+            let winCount = 0, lossCount = 0;
+            let totalWinPct = 0, totalLossPct = 0;
+            let barWinTotal = 0, barLossTotal = 0;
+            let grossProfit = 0, grossLoss = 0;
+            let maxDrawdown = 0, peakEquity = initialEquity;
+            let runningEquity = initialEquity;
+
+            trades.sort((a, b) => new Date(a.sellDate) - new Date(b.sellDate));
+
+            trades.forEach(t => {
+                runningEquity += t.profitNominal;
+                if (runningEquity > peakEquity) peakEquity = runningEquity;
+                const dd = ((peakEquity - runningEquity) / peakEquity) * 100;
+                if (dd > maxDrawdown) maxDrawdown = dd;
+
+                if (t.retPct > 0) {
+                    winCount++;
+                    totalWinPct += t.retPct;
+                    barWinTotal += t.holdDays;
+                    grossProfit += t.profitNominal;
+                } else {
+                    lossCount++;
+                    totalLossPct += t.retPct;
+                    barLossTotal += t.holdDays;
+                    grossLoss += Math.abs(t.profitNominal);
+                }
+            });
+
+            const totalTrades = trades.length;
+            const winRate = totalTrades > 0 ? (winCount / totalTrades) * 100 : 0;
+            const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? '∞' : '0.00') : (grossProfit / grossLoss).toFixed(2);
+            const avgWin = winCount > 0 ? totalWinPct / winCount : 0;
+            const avgLoss = lossCount > 0 ? totalLossPct / lossCount : 0;
+            const payoffRatio = Math.abs(avgLoss) > 0 ? (avgWin / Math.abs(avgLoss)).toFixed(2) : (avgWin > 0 ? '∞' : '0.00');
+
+            const avgBarWin = winCount > 0 ? Math.round(barWinTotal / winCount) : 0;
+            const avgBarLoss = lossCount > 0 ? Math.round(barLossTotal / lossCount) : 0;
+
+            let cagr = 0;
+            let daysActive = 0;
+            if (totalTrades > 0) {
+                daysActive = daysBetween(new Date(trades[0].buyDate), latestDate);
+                const years = daysActive / 365.25;
+                if (years > 0) {
+                    cagr = (Math.pow((runningEquity / initialEquity), (1 / years)) - 1) * 100;
+                }
+            }
+
+            let openPositionsValue = activePositions.reduce((sum, p) => sum + (p.qty * p.currentPrice), 0);
+            const totalEquityFinal = runningEquity + openPositionsValue - activePositions.reduce((sum, p) => sum + (p.qty * p.buyPrice), 0);
+            const cash = totalEquityFinal - openPositionsValue;
+            const investedPct = totalEquityFinal > 0 ? (openPositionsValue / totalEquityFinal) * 100 : 0;
+
+            document.getElementById('valWinRate').innerText = `${winRate.toFixed(1)}%`;
+            document.getElementById('barWinRate').style.width = `${winRate}%`;
+            document.getElementById('valTradeCount').innerText = `${winCount} Wins / ${totalTrades} Total Trades`;
+            
+            document.getElementById('valProfitFactor').innerText = profitFactor;
+            document.getElementById('valMaxDD').innerText = `-${maxDrawdown.toFixed(2)}%`;
+            document.getElementById('valAvgWin').innerText = formatPct(avgWin, true);
+            document.getElementById('valAvgLoss').innerText = formatPct(avgLoss);
+            document.getElementById('valPayoff').innerText = payoffRatio;
+            document.getElementById('valBarWin').innerText = `${avgBarWin} days`;
+            document.getElementById('valBarLose').innerText = `${avgBarLoss} days`;
+            document.getElementById('valCAGR').innerText = formatPct(cagr);
+            document.getElementById('valDaysActive').innerText = `Duration (${daysActive} active days)`;
+
+            document.getElementById('valTotalEquity').innerText = formatCurrency(totalEquityFinal);
+            document.getElementById('valInitialEquity').innerText = formatCurrency(initialEquity);
+            document.getElementById('valCash').innerText = formatCurrency(cash);
+            document.getElementById('valOpenPositions').innerText = formatCurrency(openPositionsValue);
+            document.getElementById('valInvestedPct').innerText = `${investedPct.toFixed(1)}%`;
+            document.getElementById('valInvestedPctText').innerText = `${investedPct.toFixed(1)}% of Capital`;
+            document.getElementById('barInvestedPct').style.width = `${Math.min(investedPct, 100)}%`;
+        }
+
+        function renderTables(trades, activePositions, livePrices = {}, watchlistSymbols = []) {
+            const tbodyHistory = document.getElementById('tableHistory');
+            tbodyHistory.innerHTML = '';
+            
+            [...trades].sort((a, b) => new Date(b.sellDate) - new Date(a.sellDate)).forEach(t => {
+                const isWin = t.retPct > 0;
+                tbodyHistory.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition-colors">
+                        <td class="px-4 py-3 font-semibold text-white">${t.symbol}</td>
+                        <td class="px-4 py-3 text-slate-400">${t.buyDate}</td>
+                        <td class="px-4 py-3 text-right font-mono text-slate-300">${t.buyPrice.toFixed(2)}</td>
+                        <td class="px-4 py-3 text-slate-400">${t.sellDate}</td>
+                        <td class="px-4 py-3 text-right font-mono text-slate-300">${t.sellPrice.toFixed(2)}</td>
+                        <td class="px-4 py-3 text-right font-bold ${isWin ? 'text-success' : 'text-danger'}">${formatPct(t.retPct, true)}</td>
+                        <td class="px-4 py-3 text-right text-slate-400 font-mono">${t.holdDays} days</td>
+                    </tr>
+                `;
+            });
+
+            const tbodyActive = document.getElementById('tableActive');
+            tbodyActive.innerHTML = '';
+            const today = new Date().toISOString().split('T')[0];
+            
+            activePositions.forEach(p => {
+                const unretPct = ((p.currentPrice - p.buyPrice) / p.buyPrice) * 100;
+                const isWin = unretPct > 0;
+                const holdDays = daysBetween(p.buyDate, today);
+                tbodyActive.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition-colors">
+                        <td class="px-4 py-3 font-semibold text-white">${p.symbol}</td>
+                        <td class="px-4 py-3 text-slate-400">${p.buyDate}</td>
+                        <td class="px-4 py-3 text-right font-mono text-slate-300">${p.buyPrice.toFixed(2)}</td>
+                        <td class="px-4 py-3 text-right font-mono font-bold text-white">${p.hasLivePrice ? p.currentPrice.toFixed(0) : 'Unavailable'}</td>
+                        <td class="px-4 py-3 text-right font-bold ${p.hasLivePrice ? (isWin ? 'text-success' : 'text-danger') : 'text-slate-500'}">${p.hasLivePrice ? formatPct(unretPct, true) : 'N/A'}</td>
+                        <td class="px-4 py-3 text-right text-slate-400 font-mono">${holdDays} days</td>
+                        <td class="px-4 py-3 text-right text-slate-300 font-mono">20.0%</td>
+                    </tr>
+                `;
+            });
+
+            const tbodyWatchlist = document.getElementById('tableWatchlist');
+            const defaultNotes = { 'BBCA': 'Accumulation Zone', 'BBRI': 'Oversold Mean Reversion', 'BMRI': 'Bullish Trend Filter', 'ASII': 'Sideways Band', 'TLKM': 'Support Test', 'MAPI': 'Breakout Watch', 'GOTO': 'High Volatility' };
+            
+            tbodyWatchlist.innerHTML = watchlistSymbols.map(sym => {
+                const px = livePrices[sym] ? livePrices[sym].toFixed(0) : 'Unavailable';
+                const note = defaultNotes[sym] || 'Monitoring';
+                return `
+                 <tr class="hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="openChartModal('${sym}')" title="Click to view full chart history since 2010">
+                    <td class="px-4 py-3 font-semibold text-white flex items-center justify-between">
+                        <span class="font-mono">${sym}</span>
+                        <i data-lucide="line-chart" class="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono text-white font-medium">${px}</td>
+                    <td class="px-4 py-3 text-warning font-medium text-[11px]">${note}</td>
+                </tr>
+                `;
+            }).join('');
+            
+            lucide.createIcons();
+        }
+
+        async function loadSampleData() {
+            const sampleData = `BBRI, 2026-01-10, 2026-01-25, 4500, 4800, 4000
+TLKM, 2026-02-05, 2026-02-15, 3800, 3700, 5000
+BMRI, 2026-03-01, 2026-03-20, 5000, 5500, 3500
+ASII, 2026-04-10, 2026-04-12, 6000, 5850, 3000
+BBCA, 2026-05-01, 2026-06-01, 8800, 9200, 2000
+UNVR, 2026-06-15, 2026-06-25, 4200, 4400, 4500
+ICBP, 2026-07-01, 2026-07-05, 11000, 10500, 1500
+AMRT, 2026-08-10, 2026-09-01, 2800, 3100, 6000
+KLBF, 2026-09-15, 2026-09-20, 1800, 1750, 10000
+MAPI, 2026-10-01, , 1600, , 12000
+GOTO, 2026-10-05, , 60, , 300000`;
+            
+            document.getElementById('csvInput').value = sampleData;
+            document.getElementById('initialEquityInput').value = "100000000";
+            await processData();
+        }
+
+        window.onload = () => {
+            loadKompas100Universe();
+            updatePaperPortfolioUI();
+            document.getElementById('paperInitialCapital').addEventListener('change', setPaperInitialCapital);
+            document.getElementById('autoScanInterval').addEventListener('change', () => {
+                if (!autoScanEnabled) return;
+                clearInterval(autoScanTimer);
+                const requestedMinutes = Number(document.getElementById('autoScanInterval').value) || 15;
+                const symbolCount = document.getElementById('strategySymbols').value.split(/[\s,;]+/).filter(Boolean).length;
+                const minutes = symbolCount > 25 ? Math.max(15, requestedMinutes) : requestedMinutes;
+                if (minutes !== requestedMinutes) document.getElementById('autoScanInterval').value = String(minutes);
+                autoScanTimer = setInterval(runStrategyBacktest, minutes * 60 * 1000);
+            });
+        };
+    </script>
+</body>
+</html>

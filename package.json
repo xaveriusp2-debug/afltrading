@@ -1,0 +1,12 @@
+{
+  "name": "kompas100-strategy-monitor",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "echo 'Static app ready for Vercel'"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.110",
+    "ai": "^7.0.137"
+  }
+}
